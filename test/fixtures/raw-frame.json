@@ -1,0 +1,86 @@
+{
+  "id": "12:345",
+  "name": "Checkout / Desktop",
+  "type": "FRAME",
+  "absoluteBoundingBox": { "x": 100, "y": 200, "width": 1440, "height": 900 },
+  "fills": [
+    { "type": "SOLID", "color": { "r": 1, "g": 1, "b": 1, "a": 1 } }
+  ],
+  "layoutMode": "VERTICAL",
+  "itemSpacing": 24,
+  "paddingTop": 32,
+  "paddingRight": 48,
+  "paddingBottom": 32,
+  "paddingLeft": 48,
+  "primaryAxisAlignItems": "MIN",
+  "counterAxisAlignItems": "CENTER",
+  "children": [
+    {
+      "id": "12:346",
+      "name": "Heading",
+      "type": "TEXT",
+      "absoluteBoundingBox": { "x": 148, "y": 232, "width": 320, "height": 40 },
+      "characters": "Checkout",
+      "fills": [
+        { "type": "SOLID", "color": { "r": 0.1019607843137255, "g": 0.1019607843137255, "b": 0.1803921568627451, "a": 1 } }
+      ],
+      "style": {
+        "fontFamily": "Inter",
+        "fontSize": 32,
+        "fontWeight": 700,
+        "lineHeightPx": 40,
+        "letterSpacing": -0.5,
+        "textAlignHorizontal": "LEFT"
+      }
+    },
+    {
+      "id": "12:781",
+      "name": "Button / Place order",
+      "type": "INSTANCE",
+      "absoluteBoundingBox": { "x": 148, "y": 800, "width": 240, "height": 48 },
+      "cornerRadius": 8,
+      "strokeWeight": 1,
+      "strokes": [
+        { "type": "SOLID", "color": { "r": 0.1, "g": 0.3, "b": 0.8, "a": 1 }, "visible": false }
+      ],
+      "fills": [
+        { "type": "SOLID", "color": { "r": 0.17647058823529413, "g": 0.4235294117647059, "b": 0.8745098039215686, "a": 1 } }
+      ],
+      "componentProperties": {
+        "State": { "value": "Default", "type": "VARIANT" },
+        "Size#123:0": { "value": "Large", "type": "VARIANT" }
+      },
+      "children": [
+        {
+          "id": "12:782",
+          "name": "Label",
+          "type": "TEXT",
+          "characters": "Place order",
+          "absoluteBoundingBox": { "x": 220, "y": 814, "width": 96, "height": 20 },
+          "fills": [
+            { "type": "SOLID", "color": { "r": 1, "g": 1, "b": 1, "a": 1 } }
+          ],
+          "style": { "fontFamily": "Inter", "fontSize": 16, "fontWeight": 600 }
+        }
+      ]
+    },
+    {
+      "id": "12:900",
+      "name": "Decorative gradient",
+      "type": "RECTANGLE",
+      "visible": false,
+      "opacity": 0.5,
+      "rectangleCornerRadii": [4, 4, 0, 0],
+      "absoluteBoundingBox": { "x": 100, "y": 200, "width": 1440, "height": 120 },
+      "fills": [
+        {
+          "type": "GRADIENT_LINEAR",
+          "gradientStops": [
+            { "position": 0, "color": { "r": 1, "g": 0, "b": 0, "a": 1 } },
+            { "position": 1, "color": { "r": 0, "g": 0, "b": 1, "a": 0.5 } }
+          ]
+        }
+      ]
+    }
+  ]
+}

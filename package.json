@@ -1,0 +1,27 @@
+{
+  "name": "design-qa",
+  "version": "0.1.0",
+  "description": "Design QA agent — compares a Figma design against a live web app and reports mismatches. Phase 1: Figma extraction.",
+  "type": "module",
+  "bin": {
+    "design-qa": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/cli.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "commander": "^12.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

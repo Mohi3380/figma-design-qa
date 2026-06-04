@@ -1,0 +1,22 @@
+{
+  "figma": {
+    "fileKey": "",
+    "frames": [],
+    "source": "rest"
+  },
+  "target": {
+    "baseUrl": "http://localhost:3000",
+    "routes": []
+  },
+  "viewports": [1440, 768, 375],
+  "tolerances": {
+    "positionPx": 4,
+    "sizePx": 2,
+    "colorDeltaE": 3,
+    "fontSizeExact": true
+  },
+  "pointers": ["existence", "position", "size", "color", "typography", "spacing", "text", "asset", "visual"],
+  "matching": { "preferAttribute": "data-figma-id" },
+  "severityGate": "high",
+  "vision": { "enabled": true, "model": "claude-opus-4-8" }
+}
