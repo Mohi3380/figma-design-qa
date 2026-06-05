@@ -4,3 +4,4 @@ design-qa-output/
 design-qa-report/
 *.log
 .env
+design-qa-report.pdf
