@@ -9,7 +9,7 @@ design-qa run --figma "https://figma.com/design/AbC123/Checkout?node-id=12-345" 
               --target "https://app.example.com/checkout"
 ```
 
-Extract → capture → spec diff (Layer A) → region pixel diff (Layer B) → a **self-contained `report.html`** with design/live/diff evidence images, plus the canonical `report.json`. Vision adjudication (Layer C) arrives in Phase 5.
+Extract → capture → spec diff (Layer A) → region pixel diff (Layer B) → a **`report.pdf`** (one attachable document, evidence images embedded), plus the self-contained `report.html` it's rendered from and the canonical `report.json`. Pass `--no-pdf` to skip the PDF. Vision adjudication (Layer C) arrives in Phase 5.
 
 ## Setup
 
@@ -107,6 +107,7 @@ npm run dev -- run --figma "https://figma.com/design/AbC123/Checkout?node-id=12-
 | `src/report/evidence.ts` | Layer B (spec §6.5-B): evaluates the deferred `visual` pointers (design crop ↔ live crop → mismatch %), attaches design/live/diff evidence to every issue — missing elements get the live crop *at the expected location* — then recounts the summary. |
 | `src/report/html.ts` | The reporter (spec §6.6): `ComparisonReport` → one self-contained HTML file, evidence inlined as data URIs, issues grouped by element and ordered by worst severity. Pure render, no I/O. |
 | `src/report/write.ts` | Writes the two §8 artifacts: `report.json` (canonical, relative evidence paths) and `report.html` (inlined). |
+| `src/report/pdf.ts` | `report.html` → `report.pdf` via Chromium's print engine (`printBackground: true` — severity badges and chips are CSS backgrounds and would otherwise vanish). |
 | `src/cli.ts` | `extract` (Phase 1), `capture` (Phase 2), `compare` (Phases 3–4), and `run` — the full two-URL pipeline (§14). |
 
 ## Tests

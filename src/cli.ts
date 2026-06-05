@@ -8,6 +8,7 @@
  * later phases; its flags are reserved here so the contract is visible.
  */
 import { readFile } from 'node:fs/promises';
+import path from 'node:path';
 import { Command } from 'commander';
 import { compare } from './compare/engine.js';
 import { loadConfig, ConfigError } from './config.js';
@@ -15,6 +16,7 @@ import { FigmaClient, FigmaApiError } from './figma/api.js';
 import { extractFrame } from './figma/extractor.js';
 import { parseFigmaUrl, normalizeNodeId, FigmaUrlError } from './figma/url.js';
 import { applyPixelDiff } from './report/evidence.js';
+import { renderPdf } from './report/pdf.js';
 import { writeReports } from './report/write.js';
 import type { ComparisonReport, DesignExtraction, LiveCapture, Severity } from './types.js';
 import { captureUrl, WebCaptureError } from './web/capturer.js';
@@ -129,8 +131,9 @@ program
   .option('--frame-png <path>', 'Figma frame render @1x (enables the pixel-diff layer)')
   .option('--page-png <path>', 'full-page screenshot from `design-qa capture`')
   .option('--config <path>', 'Path to design-qa.config.json', 'design-qa.config.json')
-  .option('--out <dir>', 'Output directory for report.json/report.html', './design-qa-output')
-  .option('--no-html', 'Skip the HTML report')
+  .option('--out <dir>', 'Output directory for report.pdf/report.html/report.json', './design-qa-output')
+  .option('--no-html', 'Skip the HTML report (implies --no-pdf)')
+  .option('--no-pdf', 'Skip the PDF report')
   .action(
     async (opts: {
       design: string;
@@ -140,6 +143,7 @@ program
       config: string;
       out: string;
       html: boolean;
+      pdf: boolean;
     }) => {
       try {
         const config = await loadConfig(opts.config);
@@ -164,7 +168,11 @@ program
         }
 
         const written = await writeReports(report, opts.out, { html: opts.html });
-        printReport(report, written.htmlPath ?? written.jsonPath);
+        let headline = written.htmlPath ?? written.jsonPath;
+        if (opts.pdf && written.htmlPath) {
+          headline = await renderPdf(written.htmlPath, path.join(opts.out, 'report.pdf'));
+        }
+        printReport(report, headline);
       } catch (err) {
         handleError(err);
       }
@@ -179,8 +187,16 @@ program
   .option('--viewport <width>', 'Capture viewport width (default: the design frame\'s own width)')
   .option('--config <path>', 'Path to design-qa.config.json', 'design-qa.config.json')
   .option('--out <dir>', 'Output directory', './design-qa-output')
+  .option('--no-pdf', 'Skip the PDF report')
   .action(
-    async (opts: { figma: string; target: string; viewport?: string; config: string; out: string }) => {
+    async (opts: {
+      figma: string;
+      target: string;
+      viewport?: string;
+      config: string;
+      out: string;
+      pdf: boolean;
+    }) => {
       try {
         const config = await loadConfig(opts.config);
         const ref = parseFigmaUrl(opts.figma);
@@ -230,7 +246,11 @@ program
         });
 
         const written = await writeReports(report, opts.out);
-        printReport(report, written.htmlPath ?? written.jsonPath);
+        let headline = written.htmlPath ?? written.jsonPath;
+        if (opts.pdf && written.htmlPath) {
+          headline = await renderPdf(written.htmlPath, path.join(opts.out, 'report.pdf'));
+        }
+        printReport(report, headline);
       } catch (err) {
         handleError(err);
       }
