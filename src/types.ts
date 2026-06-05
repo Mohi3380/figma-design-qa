@@ -75,6 +75,9 @@ export interface NormalizedNode {
   autoLayout?: AutoLayout;
   /** Component variant properties, when the node is a component instance. */
   variant?: Record<string, string>;
+  /** Source attributes the matcher cares about (Phase 2 DOM nodes only):
+   * the explicit mapping attribute (`data-figma-id`), role, aria-label, id. */
+  attributes?: Record<string, string>;
   children: NormalizedNode[];
 }
 
@@ -85,5 +88,14 @@ export interface DesignExtraction {
   frameId: string;
   frameName: string;
   extractedAt: string; // ISO timestamp
+  tree: NormalizedNode;
+}
+
+/** Top-level artifact written by the web capturer for one URL × viewport. */
+export interface LiveCapture {
+  source: 'playwright';
+  url: string;
+  viewport: { width: number; height: number };
+  capturedAt: string; // ISO timestamp
   tree: NormalizedNode;
 }

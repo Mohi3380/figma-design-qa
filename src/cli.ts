@@ -2,7 +2,8 @@
 /**
  * design-qa CLI (spec §5).
  *
- * Phase 1 ships the `extract` command (Figma → normalized tree + PNG).
+ * Phase 1 ships `extract` (Figma → normalized tree + PNG).
+ * Phase 2 ships `capture` (live URL → normalized tree + screenshots).
  * The `run` command (extract + capture + compare + report) arrives with
  * later phases; its flags are reserved here so the contract is visible.
  */
@@ -11,6 +12,7 @@ import { loadConfig, ConfigError } from './config.js';
 import { FigmaClient, FigmaApiError } from './figma/api.js';
 import { extractFrame } from './figma/extractor.js';
 import { parseFigmaUrl, normalizeNodeId, FigmaUrlError } from './figma/url.js';
+import { captureUrl, WebCaptureError } from './web/capturer.js';
 
 const program = new Command();
 
@@ -68,16 +70,70 @@ program
   });
 
 program
+  .command('capture')
+  .description('Capture a live page into a normalized element tree (JSON) + screenshots per viewport.')
+  .option('--target <url>', 'Live page URL (http://localhost:3000/signup, https://…)')
+  .option('--viewports <widths>', 'Comma-separated viewport widths, e.g. 1440,768,375')
+  .option('--config <path>', 'Path to design-qa.config.json', 'design-qa.config.json')
+  .option('--out <dir>', 'Output directory', './design-qa-output')
+  .action(async (opts: { target?: string; viewports?: string; config: string; out: string }) => {
+    try {
+      const config = await loadConfig(opts.config);
+
+      // Resolve target/viewports: explicit flags > config file.
+      const target =
+        opts.target ??
+        (config.target.baseUrl
+          ? new URL(config.target.routes[0] ?? '/', config.target.baseUrl).toString()
+          : undefined);
+      if (!target) {
+        fail('Need a page to capture. Pass --target "<url>" or set target.baseUrl in the config.');
+      }
+
+      let viewports = config.viewports;
+      if (opts.viewports) {
+        viewports = opts.viewports.split(',').map((v) => Number(v.trim()));
+        if (viewports.some((v) => !Number.isInteger(v) || v <= 0)) {
+          fail(`--viewports must be comma-separated positive integers, got "${opts.viewports}".`);
+        }
+      }
+
+      const results = await captureUrl({
+        url: target,
+        viewports,
+        outDir: opts.out,
+        mappingAttribute: config.matching.preferAttribute,
+        log: (msg) => console.log(`▸ ${msg}`),
+      });
+
+      console.log(`\n✔ Captured ${target} at ${results.length} viewport(s)`);
+      for (const r of results) {
+        console.log(`  ${r.capture.viewport.width}px  tree: ${r.treePath}`);
+        console.log(`         shot: ${r.screenshotPath}`);
+      }
+    } catch (err) {
+      handleError(err);
+    }
+  });
+
+program
   .command('run')
   .description('Full pipeline: extract + capture + compare + report. (Arrives in later phases.)')
   .option('--figma <url>', 'Figma frame URL')
   .option('--target <url>', 'Live page URL')
   .action(() => {
-    fail('`design-qa run` is not implemented yet — Phase 1 ships `design-qa extract`. See the spec, §10.');
+    fail(
+      '`design-qa run` is not implemented yet — use `design-qa extract` (Figma) and `design-qa capture` (live page). The comparison arrives in Phase 3. See the spec, §10.',
+    );
   });
 
 function handleError(err: unknown): never {
-  if (err instanceof ConfigError || err instanceof FigmaUrlError || err instanceof FigmaApiError) {
+  if (
+    err instanceof ConfigError ||
+    err instanceof FigmaUrlError ||
+    err instanceof FigmaApiError ||
+    err instanceof WebCaptureError
+  ) {
     fail(err.message);
   }
   throw err;
