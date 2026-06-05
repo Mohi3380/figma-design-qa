@@ -67,6 +67,8 @@ export function renderHtmlReport(report: ComparisonReport, options: RenderOption
   .pointer { font-family: ui-monospace, Consolas, monospace; font-size: 12px; background: #f0f2f7; border-radius: 4px; padding: 1px 6px; }
   .conf { color: #99a; font-size: 11px; margin-left: auto; }
   .explanation { margin: 6px 0 0; }
+  .adjudication { margin: 6px 0 0; padding: 6px 10px; background: #F6F4FF; border: 1px solid #D9D2F0; border-radius: 6px; font-size: 13px; }
+  .adjudication .model { color: #99a; font-size: 11px; }
   .values { margin: 8px 0 0; font-size: 13px; display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; }
   .values dt { color: #667; }
   .values dd { margin: 0; font-family: ui-monospace, Consolas, monospace; }
@@ -211,6 +213,14 @@ function renderIssue(issue: Issue, src: (rel?: string) => string | undefined): s
     )
     .join('\n      ');
 
+  const adjudication = issue.adjudication
+    ? `<p class="adjudication">🤖 <b>${esc(issue.adjudication.verdict)}</b>${
+        issue.adjudication.previousSeverity
+          ? ` (down-ranked from ${esc(issue.adjudication.previousSeverity)})`
+          : ''
+      } — ${esc(issue.adjudication.explanation)} <span class="model">${esc(issue.adjudication.model)}</span></p>`
+    : '';
+
   return `<div class="issue" id="${esc(issue.id)}">
     <div class="issue-head">
       <span class="badge" style="background:${SEVERITY_COLOR[issue.severity]}">${issue.severity}</span>
@@ -218,6 +228,7 @@ function renderIssue(issue: Issue, src: (rel?: string) => string | undefined): s
       <span class="conf">confidence ${issue.confidence}</span>
     </div>
     <p class="explanation">${esc(issue.explanation)}</p>
+    ${adjudication}
     ${values}
     ${figures ? `<div class="evidence">\n      ${figures}\n    </div>` : ''}
   </div>`;

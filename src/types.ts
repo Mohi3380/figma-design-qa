@@ -154,6 +154,15 @@ export interface Issue {
    * design = crop of the Figma render, live = crop of the screenshot,
    * diff = pixelmatch overlay (only when both regions exist). */
   evidence?: { design?: string; live?: string; diff?: string };
+  /** Layer C verdict (Phase 5): Claude's judgement on whether the issue is a
+   * real regression or cosmetic noise. `previousSeverity` keeps the Layer A/B
+   * grade so a human can override the down-ranking (spec §7). */
+  adjudication?: {
+    verdict: 'real' | 'noise' | 'uncertain';
+    explanation: string;
+    model: string;
+    previousSeverity?: Severity;
+  };
 }
 
 /** Canonical comparison output (spec §8 report.json, Layer A scope). */

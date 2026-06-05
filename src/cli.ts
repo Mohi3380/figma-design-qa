@@ -11,7 +11,8 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { Command } from 'commander';
 import { compare } from './compare/engine.js';
-import { loadConfig, ConfigError } from './config.js';
+import { adjudicateIssues, VisionError } from './compare/vision.js';
+import { loadConfig, ConfigError, type DesignQaConfig } from './config.js';
 import { FigmaClient, FigmaApiError } from './figma/api.js';
 import { extractFrame } from './figma/extractor.js';
 import { parseFigmaUrl, normalizeNodeId, FigmaUrlError } from './figma/url.js';
@@ -134,6 +135,7 @@ program
   .option('--out <dir>', 'Output directory for report.pdf/report.html/report.json', './design-qa-output')
   .option('--no-html', 'Skip the HTML report (implies --no-pdf)')
   .option('--no-pdf', 'Skip the PDF report')
+  .option('--no-vision', 'Skip the vision adjudication layer')
   .action(
     async (opts: {
       design: string;
@@ -144,6 +146,7 @@ program
       out: string;
       html: boolean;
       pdf: boolean;
+      vision: boolean;
     }) => {
       try {
         const config = await loadConfig(opts.config);
@@ -167,6 +170,8 @@ program
           fail('Pixel diff needs BOTH --frame-png and --page-png.');
         }
 
+        await maybeAdjudicate(report, config, opts.out, opts.vision);
+
         const written = await writeReports(report, opts.out, { html: opts.html });
         let headline = written.htmlPath ?? written.jsonPath;
         if (opts.pdf && written.htmlPath) {
@@ -188,6 +193,7 @@ program
   .option('--config <path>', 'Path to design-qa.config.json', 'design-qa.config.json')
   .option('--out <dir>', 'Output directory', './design-qa-output')
   .option('--no-pdf', 'Skip the PDF report')
+  .option('--no-vision', 'Skip the vision adjudication layer')
   .action(
     async (opts: {
       figma: string;
@@ -196,6 +202,7 @@ program
       config: string;
       out: string;
       pdf: boolean;
+      vision: boolean;
     }) => {
       try {
         const config = await loadConfig(opts.config);
@@ -244,6 +251,8 @@ program
           visualMismatchPct: config.tolerances.visualMismatchPct,
           log,
         });
+
+        await maybeAdjudicate(report, config, opts.out, opts.vision);
 
         const written = await writeReports(report, opts.out);
         let headline = written.htmlPath ?? written.jsonPath;
@@ -298,6 +307,36 @@ function badge(severity: Severity): string {
   return { critical: '🔴', high: '🟠', medium: '🟡', low: '🔵', info: 'ℹ️' }[severity];
 }
 
+/** Run Layer C when enabled and possible; skip loudly, never fail the run —
+ * the deterministic report is still valid without adjudication. */
+async function maybeAdjudicate(
+  report: ComparisonReport,
+  config: DesignQaConfig,
+  outDir: string,
+  visionFlag: boolean,
+): Promise<void> {
+  if (!visionFlag || !config.vision.enabled) return;
+  if (!process.env.ANTHROPIC_API_KEY) {
+    console.warn(
+      '⚠ Skipping vision adjudication — set ANTHROPIC_API_KEY to enable it (or pass --no-vision to silence this).',
+    );
+    return;
+  }
+  try {
+    await adjudicateIssues(report, {
+      model: config.vision.model,
+      outDir,
+      log: (msg) => console.log(`▸ ${msg}`),
+    });
+  } catch (err) {
+    if (err instanceof VisionError) {
+      console.warn(`⚠ Vision adjudication skipped: ${err.message}`);
+      return;
+    }
+    throw err;
+  }
+}
+
 /** Shared console summary for `compare` and `run` (spec §14 shape). */
 function printReport(report: ComparisonReport, reportPath: string): void {
   for (const warning of report.warnings) console.warn(`⚠ ${warning}`);
@@ -322,7 +361,11 @@ function printReport(report: ComparisonReport, reportPath: string): void {
     for (const issue of report.issues.filter((i) => i.severity === severity)) {
       const detail =
         issue.expected !== undefined ? ` — expected ${issue.expected}, got ${issue.actual}` : '';
-      console.log(`  ${badge(severity)} [${issue.pointer}] ${issue.elementName}${detail}`);
+      const verdict =
+        issue.adjudication?.verdict === 'noise'
+          ? ` (noise, was ${issue.adjudication.previousSeverity})`
+          : '';
+      console.log(`  ${badge(severity)} [${issue.pointer}] ${issue.elementName}${detail}${verdict}`);
     }
   }
 }

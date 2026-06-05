@@ -9,7 +9,9 @@ design-qa run --figma "https://figma.com/design/AbC123/Checkout?node-id=12-345" 
               --target "https://app.example.com/checkout"
 ```
 
-Extract → capture → spec diff (Layer A) → region pixel diff (Layer B) → a **`report.pdf`** (one attachable document, evidence images embedded), plus the self-contained `report.html` it's rendered from and the canonical `report.json`. Pass `--no-pdf` to skip the PDF. Vision adjudication (Layer C) arrives in Phase 5.
+Extract → capture → spec diff (Layer A) → region pixel diff (Layer B) → **vision adjudication with Claude (Layer C)** → a **`report.pdf`** (one attachable document, evidence images embedded), plus the self-contained `report.html` it's rendered from and the canonical `report.json`.
+
+Layer C sends each candidate issue (evidence crops + structured deltas) to Claude, which judges **real regression vs cosmetic noise**, re-grades severity, and writes the one-line explanations in the report. Noise is down-ranked to `low`, never deleted — the previous grade is kept so a human can override. Requires `ANTHROPIC_API_KEY`; without it the run continues with the deterministic layers only (`--no-vision` silences the notice). `--no-pdf` skips the PDF.
 
 ## Setup
 
@@ -103,6 +105,7 @@ npm run dev -- run --figma "https://figma.com/design/AbC123/Checkout?node-id=12-
 | `src/compare/matcher.ts` | The hard part (spec §6.3): aligns Figma nodes ↔ DOM elements in four passes — `data-figma-id` attribute (exact), text content, **anchor propagation** (a matched text pulls its parents together), geometry. Every pair logs its method + confidence. Hidden DOM elements can only be claimed by explicit signals, never by geometry. |
 | `src/compare/pointers.ts` | Builds + evaluates the checkpoints per matched pair (spec §6.4): existence, position, size, color (ΔE), typography, spacing, text. `asset`/`visual` are emitted as *skipped* so the pointer count stays honest about what wasn't checked yet. |
 | `src/compare/engine.ts` | Layer A orchestration (spec §6.5): match → evaluate → grade severities (§7) → canonical `report.json` (§8). Positions compare frame-relative design coords against page coords — the frame's top-left ↔ the page's (0,0). |
+| `src/compare/vision.ts` | Layer C (spec §6.5-C): per-issue verdicts from Claude — real/noise/uncertain + severity + explanation + confidence. Structured outputs (JSON schema) so verdicts parse guaranteed-valid, adaptive thinking, streaming, and a prompt-cached static rubric. The client is injectable, so tests run offline. |
 | `src/report/images.ts` | PNG crop / nearest-neighbor resize / `pixelmatch` region diff, pure buffers so it's testable with synthetic images. Nearest-neighbor on purpose: smoother resampling blurs away genuine 1px differences. |
 | `src/report/evidence.ts` | Layer B (spec §6.5-B): evaluates the deferred `visual` pointers (design crop ↔ live crop → mismatch %), attaches design/live/diff evidence to every issue — missing elements get the live crop *at the expected location* — then recounts the summary. |
 | `src/report/html.ts` | The reporter (spec §6.6): `ComparisonReport` → one self-contained HTML file, evidence inlined as data URIs, issues grouped by element and ordered by worst severity. Pure render, no I/O. |
@@ -124,5 +127,5 @@ Tests cover both normalizers (against realistic raw-Figma and raw-DOM fixtures),
 2. ✅ **Phase 2** — Web capture (Playwright) → comparable live tree + screenshots
 3. ✅ **Phase 3** — Element matching + deterministic spec diff (Layer A) → severity-graded `report.json`
 4. ✅ **Phase 4** — Pixel diff (Layer B) + evidence images + self-contained `report.html` + `design-qa run`
-5. ⬜ **Phase 5** — Vision adjudication with Claude (Layer C)
+5. ✅ **Phase 5** — Vision adjudication with Claude (Layer C): noise filtering, severity re-grades, human explanations
 6. ⬜ **Phase 6** — CI gating, Dev Mode MCP source, multi-viewport
