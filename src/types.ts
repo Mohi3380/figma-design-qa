@@ -150,6 +150,10 @@ export interface Issue {
   explanation: string;
   /** Match confidence of the underlying pair (1 for existence issues). */
   confidence: number;
+  /** Evidence image paths, relative to the report directory (Phase 4).
+   * design = crop of the Figma render, live = crop of the screenshot,
+   * diff = pixelmatch overlay (only when both regions exist). */
+  evidence?: { design?: string; live?: string; diff?: string };
 }
 
 /** Canonical comparison output (spec §8 report.json, Layer A scope). */

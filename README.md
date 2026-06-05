@@ -2,7 +2,14 @@
 
 An agent that compares a **Figma design** against a **live web app** and reports every mismatch as a severity-graded issue. Built phase by phase from `figma-design-qa-agent-spec.md`.
 
-**Current status: Phase 3** — the comparison works. Extract a Figma frame, capture the live page, run `compare`, and get a severity-graded issue list: *expected `#2D6CDF`, got `#3A78E0` (ΔE 6.1 > 3)*. This is Layer A (deterministic spec diff); pixel diff and the HTML report arrive in Phase 4.
+**Current status: Phase 4** — the two-URL contract works end to end:
+
+```bash
+design-qa run --figma "https://figma.com/design/AbC123/Checkout?node-id=12-345" \
+              --target "https://app.example.com/checkout"
+```
+
+Extract → capture → spec diff (Layer A) → region pixel diff (Layer B) → a **self-contained `report.html`** with design/live/diff evidence images, plus the canonical `report.json`. Vision adjudication (Layer C) arrives in Phase 5.
 
 ## Setup
 
@@ -46,22 +53,38 @@ Outputs per viewport:
 - `live-tree-<page>@<width>.json` — the normalized live tree (same schema as the design tree)
 - `page-<page>@<width>.png` — full-page screenshot (Phase 4 crops evidence regions from it)
 
-### Compare the two (Phase 3)
+### Compare the two (Phases 3–4)
 
 ```bash
+# Spec diff only (Layer A)
 npm run dev -- compare --design design-qa-output/design-tree-12-345.json \
                        --live design-qa-output/live-tree-app-example-com-checkout@1440.json
+
+# + region pixel diff and evidence images (Layer B)
+npm run dev -- compare --design … --live … \
+                       --frame-png design-qa-output/frame-12-345@1x.png \
+                       --page-png design-qa-output/page-app-example-com-checkout@1440.png
 ```
 
-Prints a severity-graded issue list and writes `report.json` (the canonical §8 artifact):
+Prints a severity-graded issue list and writes `report.json` + a self-contained `report.html`:
 
 ```
-✔ Report ready: ./design-qa-output/report.json
-  40 pointers checked · 25 passed · 7 failed · 8 deferred to later phases
-  Critical 1 · High 3 · Medium 3 · Low 0 · Info 0
+✔ Report ready: design-qa-output\report.html
+  40 pointers checked · 28 passed · 8 failed · 4 deferred
+  Critical 1 · High 3 · Medium 4 · Low 0 · Info 0
   🔴 [existence] Trust badges — expected INSTANCE "Trust badges" present, got no matching element in the DOM
   🟠 [color.background] Button / Sign up — expected #1D5CCF, got #2D6CDF
+  🟡 [visual] Label — expected ≤ 20% differing pixels, got 28.7% differ
 ```
+
+### Or all of it in one command (the §14 contract)
+
+```bash
+npm run dev -- run --figma "https://figma.com/design/AbC123/Checkout?node-id=12-345" \
+                   --target "http://localhost:3000/checkout"
+```
+
+`run` captures at the design frame's own width by default (override with `--viewport`), so positions compare 1:1 against the frame the designer actually drew (spec §11).
 
 ## Module map (why each exists)
 
@@ -80,7 +103,11 @@ Prints a severity-graded issue list and writes `report.json` (the canonical §8 
 | `src/compare/matcher.ts` | The hard part (spec §6.3): aligns Figma nodes ↔ DOM elements in four passes — `data-figma-id` attribute (exact), text content, **anchor propagation** (a matched text pulls its parents together), geometry. Every pair logs its method + confidence. Hidden DOM elements can only be claimed by explicit signals, never by geometry. |
 | `src/compare/pointers.ts` | Builds + evaluates the checkpoints per matched pair (spec §6.4): existence, position, size, color (ΔE), typography, spacing, text. `asset`/`visual` are emitted as *skipped* so the pointer count stays honest about what wasn't checked yet. |
 | `src/compare/engine.ts` | Layer A orchestration (spec §6.5): match → evaluate → grade severities (§7) → canonical `report.json` (§8). Positions compare frame-relative design coords against page coords — the frame's top-left ↔ the page's (0,0). |
-| `src/cli.ts` | `design-qa extract …` (Phase 1), `design-qa capture …` (Phase 2), `design-qa compare …` (Phase 3). `design-qa run` is reserved for the one-command pipeline. |
+| `src/report/images.ts` | PNG crop / nearest-neighbor resize / `pixelmatch` region diff, pure buffers so it's testable with synthetic images. Nearest-neighbor on purpose: smoother resampling blurs away genuine 1px differences. |
+| `src/report/evidence.ts` | Layer B (spec §6.5-B): evaluates the deferred `visual` pointers (design crop ↔ live crop → mismatch %), attaches design/live/diff evidence to every issue — missing elements get the live crop *at the expected location* — then recounts the summary. |
+| `src/report/html.ts` | The reporter (spec §6.6): `ComparisonReport` → one self-contained HTML file, evidence inlined as data URIs, issues grouped by element and ordered by worst severity. Pure render, no I/O. |
+| `src/report/write.ts` | Writes the two §8 artifacts: `report.json` (canonical, relative evidence paths) and `report.html` (inlined). |
+| `src/cli.ts` | `extract` (Phase 1), `capture` (Phase 2), `compare` (Phases 3–4), and `run` — the full two-URL pipeline (§14). |
 
 ## Tests
 
@@ -95,6 +122,6 @@ Tests cover both normalizers (against realistic raw-Figma and raw-DOM fixtures),
 1. ✅ **Phase 1** — Figma extraction (REST) → normalized tree + PNG
 2. ✅ **Phase 2** — Web capture (Playwright) → comparable live tree + screenshots
 3. ✅ **Phase 3** — Element matching + deterministic spec diff (Layer A) → severity-graded `report.json`
-4. ⬜ **Phase 4** — Pixel diff (Layer B) + HTML report
+4. ✅ **Phase 4** — Pixel diff (Layer B) + evidence images + self-contained `report.html` + `design-qa run`
 5. ⬜ **Phase 5** — Vision adjudication with Claude (Layer C)
 6. ⬜ **Phase 6** — CI gating, Dev Mode MCP source, multi-viewport

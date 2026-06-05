@@ -7,14 +7,16 @@
  * The `run` command (extract + capture + compare + report) arrives with
  * later phases; its flags are reserved here so the contract is visible.
  */
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { Command } from 'commander';
 import { compare } from './compare/engine.js';
 import { loadConfig, ConfigError } from './config.js';
 import { FigmaClient, FigmaApiError } from './figma/api.js';
 import { extractFrame } from './figma/extractor.js';
 import { parseFigmaUrl, normalizeNodeId, FigmaUrlError } from './figma/url.js';
-import type { DesignExtraction, LiveCapture, Severity } from './types.js';
+import { applyPixelDiff } from './report/evidence.js';
+import { writeReports } from './report/write.js';
+import type { ComparisonReport, DesignExtraction, LiveCapture, Severity } from './types.js';
 import { captureUrl, WebCaptureError } from './web/capturer.js';
 
 const program = new Command();
@@ -121,62 +123,119 @@ program
 
 program
   .command('compare')
-  .description('Compare an extracted design tree against a captured live tree (Layer A spec diff).')
+  .description('Compare an extracted design tree against a captured live tree (Layers A + B).')
   .requiredOption('--design <path>', 'design-tree-*.json from `design-qa extract`')
   .requiredOption('--live <path>', 'live-tree-*.json from `design-qa capture`')
+  .option('--frame-png <path>', 'Figma frame render @1x (enables the pixel-diff layer)')
+  .option('--page-png <path>', 'full-page screenshot from `design-qa capture`')
   .option('--config <path>', 'Path to design-qa.config.json', 'design-qa.config.json')
-  .option('--out <path>', 'Report JSON output path', './design-qa-output/report.json')
-  .action(async (opts: { design: string; live: string; config: string; out: string }) => {
-    try {
-      const config = await loadConfig(opts.config);
-      const design = await readArtifact<DesignExtraction>(opts.design, 'tree');
-      const live = await readArtifact<LiveCapture>(opts.live, 'tree');
+  .option('--out <dir>', 'Output directory for report.json/report.html', './design-qa-output')
+  .option('--no-html', 'Skip the HTML report')
+  .action(
+    async (opts: {
+      design: string;
+      live: string;
+      framePng?: string;
+      pagePng?: string;
+      config: string;
+      out: string;
+      html: boolean;
+    }) => {
+      try {
+        const config = await loadConfig(opts.config);
+        const design = await readArtifact<DesignExtraction>(opts.design, 'tree');
+        const live = await readArtifact<LiveCapture>(opts.live, 'tree');
 
-      console.log(`▸ Comparing "${design.frameName}" ↔ ${live.url} @ ${live.viewport.width}px…`);
-      const report = compare(design, live, config);
+        console.log(`▸ Comparing "${design.frameName}" ↔ ${live.url} @ ${live.viewport.width}px…`);
+        const report = compare(design, live, config);
 
-      for (const warning of report.warnings) console.warn(`⚠ ${warning}`);
-
-      const { summary, matching } = report;
-      console.log(
-        `▸ Matched ${matching.matched} pairs · ${matching.designOnly} design-only · ${matching.liveOnly} DOM-only`,
-      );
-
-      await writeFile(opts.out, JSON.stringify(report, null, 2), 'utf8');
-
-      console.log(`\n✔ Report ready: ${opts.out}`);
-      console.log(
-        `  ${summary.pointersChecked} pointers checked · ${summary.passed} passed · ` +
-          `${summary.failed} failed · ${summary.skipped} deferred to later phases`,
-      );
-      const s = summary.issuesBySeverity;
-      console.log(
-        `  Critical ${s.critical} · High ${s.high} · Medium ${s.medium} · Low ${s.low} · Info ${s.info}`,
-      );
-
-      const ordered: Severity[] = ['critical', 'high', 'medium', 'low'];
-      for (const severity of ordered) {
-        for (const issue of report.issues.filter((i) => i.severity === severity)) {
-          const detail =
-            issue.expected !== undefined ? ` — expected ${issue.expected}, got ${issue.actual}` : '';
-          console.log(`  ${badge(severity)} [${issue.pointer}] ${issue.elementName}${detail}`);
+        if (opts.framePng && opts.pagePng) {
+          await applyPixelDiff(report, {
+            design,
+            live,
+            framePng: await readFile(opts.framePng),
+            pagePng: await readFile(opts.pagePng),
+            outDir: opts.out,
+            visualMismatchPct: config.tolerances.visualMismatchPct,
+            log: (msg) => console.log(`▸ ${msg}`),
+          });
+        } else if (opts.framePng || opts.pagePng) {
+          fail('Pixel diff needs BOTH --frame-png and --page-png.');
         }
+
+        const written = await writeReports(report, opts.out, { html: opts.html });
+        printReport(report, written.htmlPath ?? written.jsonPath);
+      } catch (err) {
+        handleError(err);
       }
-    } catch (err) {
-      handleError(err);
-    }
-  });
+    },
+  );
 
 program
   .command('run')
-  .description('Full pipeline: extract + capture + compare + report. (Arrives in later phases.)')
-  .option('--figma <url>', 'Figma frame URL')
-  .option('--target <url>', 'Live page URL')
-  .action(() => {
-    fail(
-      '`design-qa run` is not implemented yet — chain `design-qa extract` (Figma), `design-qa capture` (live page), and `design-qa compare` (spec diff). The one-command pipeline arrives with the HTML report (Phase 4). See the spec, §10.',
-    );
-  });
+  .description('Full pipeline (spec §14): Figma URL + live URL in, report out.')
+  .requiredOption('--figma <url>', 'Figma frame URL (https://figma.com/design/...?node-id=...)')
+  .requiredOption('--target <url>', 'Live page URL')
+  .option('--viewport <width>', 'Capture viewport width (default: the design frame\'s own width)')
+  .option('--config <path>', 'Path to design-qa.config.json', 'design-qa.config.json')
+  .option('--out <dir>', 'Output directory', './design-qa-output')
+  .action(
+    async (opts: { figma: string; target: string; viewport?: string; config: string; out: string }) => {
+      try {
+        const config = await loadConfig(opts.config);
+        const ref = parseFigmaUrl(opts.figma);
+        if (!ref.nodeId) {
+          fail('The Figma URL has no node-id — copy the frame link (right-click the frame → Copy link).');
+        }
+
+        const client = new FigmaClient({ token: process.env.FIGMA_TOKEN ?? '' });
+        const log = (msg: string) => console.log(`▸ ${msg}`);
+
+        const extracted = await extractFrame({
+          fileKey: ref.fileKey,
+          nodeId: ref.nodeId,
+          outDir: opts.out,
+          client,
+          log,
+        });
+
+        // Capture at the frame's own width unless told otherwise — that's
+        // the viewport the design was drawn for (spec §11: only compare a
+        // viewport that has a matching frame).
+        const frameWidth = Math.round(extracted.extraction.tree.bbox?.width ?? config.viewports[0]);
+        const viewport = opts.viewport ? Number(opts.viewport) : frameWidth;
+        if (!Number.isInteger(viewport) || viewport <= 0) {
+          fail(`--viewport must be a positive integer, got "${opts.viewport}".`);
+        }
+
+        const [captured] = await captureUrl({
+          url: opts.target,
+          viewports: [viewport],
+          outDir: opts.out,
+          mappingAttribute: config.matching.preferAttribute,
+          log,
+        });
+
+        log(`Comparing "${extracted.extraction.frameName}" ↔ ${opts.target} @ ${viewport}px…`);
+        const report = compare(extracted.extraction, captured.capture, config);
+
+        await applyPixelDiff(report, {
+          design: extracted.extraction,
+          live: captured.capture,
+          framePng: await readFile(extracted.pngPaths['1x']),
+          pagePng: await readFile(captured.screenshotPath),
+          outDir: opts.out,
+          visualMismatchPct: config.tolerances.visualMismatchPct,
+          log,
+        });
+
+        const written = await writeReports(report, opts.out);
+        printReport(report, written.htmlPath ?? written.jsonPath);
+      } catch (err) {
+        handleError(err);
+      }
+    },
+  );
 
 function handleError(err: unknown): never {
   if (
@@ -217,6 +276,35 @@ async function readArtifact<T>(path: string, requiredKey: string): Promise<T> {
 
 function badge(severity: Severity): string {
   return { critical: '🔴', high: '🟠', medium: '🟡', low: '🔵', info: 'ℹ️' }[severity];
+}
+
+/** Shared console summary for `compare` and `run` (spec §14 shape). */
+function printReport(report: ComparisonReport, reportPath: string): void {
+  for (const warning of report.warnings) console.warn(`⚠ ${warning}`);
+
+  const { summary, matching } = report;
+  console.log(
+    `▸ Matched ${matching.matched} pairs · ${matching.designOnly} design-only · ${matching.liveOnly} DOM-only`,
+  );
+
+  console.log(`\n✔ Report ready: ${reportPath}`);
+  console.log(
+    `  ${summary.pointersChecked} pointers checked · ${summary.passed} passed · ` +
+      `${summary.failed} failed${summary.skipped ? ` · ${summary.skipped} deferred` : ''}`,
+  );
+  const s = summary.issuesBySeverity;
+  console.log(
+    `  Critical ${s.critical} · High ${s.high} · Medium ${s.medium} · Low ${s.low} · Info ${s.info}`,
+  );
+
+  const ordered: Severity[] = ['critical', 'high', 'medium', 'low'];
+  for (const severity of ordered) {
+    for (const issue of report.issues.filter((i) => i.severity === severity)) {
+      const detail =
+        issue.expected !== undefined ? ` — expected ${issue.expected}, got ${issue.actual}` : '';
+      console.log(`  ${badge(severity)} [${issue.pointer}] ${issue.elementName}${detail}`);
+    }
+  }
 }
 
 program.parseAsync(process.argv);

@@ -14,6 +14,10 @@ export interface Tolerances {
   spacingPx: number;
   colorDeltaE: number;
   fontSizeExact: boolean;
+  /** Max % of mismatching pixels before a `visual` pointer fails (Layer B).
+   * Generous by default — anti-aliasing and font rendering differ between
+   * Figma and browsers; Layer C (Phase 5) is the noise filter. */
+  visualMismatchPct: number;
 }
 
 export type PointerType =
@@ -55,6 +59,7 @@ export const DEFAULT_CONFIG: DesignQaConfig = {
     spacingPx: 2,
     colorDeltaE: 3,
     fontSizeExact: true,
+    visualMismatchPct: 20,
   },
   pointers: [
     'existence',
@@ -128,6 +133,7 @@ export function resolveConfig(raw: unknown): DesignQaConfig {
     if (tol.positionPx !== undefined) config.tolerances.positionPx = expectNumber(tol.positionPx, 'tolerances.positionPx');
     if (tol.sizePx !== undefined) config.tolerances.sizePx = expectNumber(tol.sizePx, 'tolerances.sizePx');
     if (tol.spacingPx !== undefined) config.tolerances.spacingPx = expectNumber(tol.spacingPx, 'tolerances.spacingPx');
+    if (tol.visualMismatchPct !== undefined) config.tolerances.visualMismatchPct = expectNumber(tol.visualMismatchPct, 'tolerances.visualMismatchPct');
     if (tol.colorDeltaE !== undefined) config.tolerances.colorDeltaE = expectNumber(tol.colorDeltaE, 'tolerances.colorDeltaE');
     if (tol.fontSizeExact !== undefined) {
       if (typeof tol.fontSizeExact !== 'boolean') throw new ConfigError('tolerances.fontSizeExact must be a boolean.');
