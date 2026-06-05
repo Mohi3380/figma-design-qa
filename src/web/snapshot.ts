@@ -34,6 +34,10 @@ export interface RawDomNode {
   styles: Record<string, string>;
   /** Direct text content (child text nodes, whitespace-collapsed). */
   text: string;
+  /** Tight bounds of the direct text (union of text-node Range rects, page
+   * coordinates). Figma TEXT bboxes hug the glyphs; the element box doesn't —
+   * without this, every TEXT position/size comparison is a false positive. */
+  textBBox?: { x: number; y: number; width: number; height: number } | null;
   children: RawDomNode[];
 }
 
@@ -115,6 +119,34 @@ export function snapshotDom(options: SnapshotOptions): RawDomNode | null {
     return text.replace(/\s+/g, ' ').trim();
   }
 
+  /** Union of the direct text nodes' rendered rects — the glyph-tight box. */
+  function textBounds(el: Element): RawDomNode['textBBox'] {
+    const range = document.createRange();
+    let union: DOMRect | null = null;
+    for (const child of Array.from(el.childNodes)) {
+      if (child.nodeType !== Node.TEXT_NODE || !(child.textContent ?? '').trim()) continue;
+      range.selectNodeContents(child);
+      const rect = range.getBoundingClientRect();
+      if (rect.width === 0 && rect.height === 0) continue;
+      if (!union) {
+        union = rect;
+      } else {
+        const left = Math.min(union.left, rect.left);
+        const top = Math.min(union.top, rect.top);
+        const right = Math.max(union.right, rect.right);
+        const bottom = Math.max(union.bottom, rect.bottom);
+        union = new DOMRect(left, top, right - left, bottom - top);
+      }
+    }
+    if (!union) return null;
+    return {
+      x: union.x + window.scrollX,
+      y: union.y + window.scrollY,
+      width: union.width,
+      height: union.height,
+    };
+  }
+
   function walk(el: Element): RawDomNode | null {
     if (SKIP_TAGS.has(el.tagName)) return null;
     const computed = getComputedStyle(el);
@@ -139,6 +171,7 @@ export function snapshotDom(options: SnapshotOptions): RawDomNode | null {
       if (node) children.push(node);
     }
 
+    const text = directText(el);
     return {
       tag: el.tagName.toLowerCase(),
       selector: selectorFor(el),
@@ -150,7 +183,8 @@ export function snapshotDom(options: SnapshotOptions): RawDomNode | null {
         height: rect.height,
       },
       styles,
-      text: directText(el),
+      text,
+      textBBox: text ? textBounds(el) : null,
       children,
     };
   }

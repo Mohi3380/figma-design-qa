@@ -99,3 +99,80 @@ export interface LiveCapture {
   capturedAt: string; // ISO timestamp
   tree: NormalizedNode;
 }
+
+// ---------------------------------------------------------------------------
+// Phase 3: matching + comparison (spec §6.3–§6.5, §7)
+// ---------------------------------------------------------------------------
+
+export type Severity = 'critical' | 'high' | 'medium' | 'low' | 'info';
+
+export type MatchMethod = 'attribute' | 'text' | 'anchor' | 'geometry';
+
+/** One aligned design↔live pair (spec §6.3). */
+export interface MatchedPair {
+  design: NormalizedNode;
+  live: NormalizedNode;
+  method: MatchMethod;
+  /** 0..1 — how sure the matcher is. attribute=1, heuristics less. */
+  confidence: number;
+}
+
+/** One evaluated checkpoint (spec §6.4) — a "pointer". Passes are kept so
+ * the report can say "312 pointers checked · 289 passed". */
+export interface PointerEvaluation {
+  /** e.g. "existence", "position", "color.background", "typography.fontSize" */
+  pointer: string;
+  figmaNodeId?: string;
+  selector?: string;
+  elementName: string;
+  result: 'pass' | 'fail' | 'skipped';
+  expected?: string;
+  actual?: string;
+  tolerance?: string;
+  /** Numeric magnitude of the difference, when meaningful (px, ΔE, …). */
+  delta?: number;
+  /** Why a pointer was skipped (e.g. visual diffs arrive in Phase 4). */
+  note?: string;
+}
+
+/** A failed pointer, enriched for the report (spec §7). */
+export interface Issue {
+  id: string;
+  elementName: string;
+  pointer: string;
+  severity: Severity;
+  expected?: string;
+  actual?: string;
+  tolerance?: string;
+  viewport: number;
+  figmaNodeId?: string;
+  selector?: string;
+  explanation: string;
+  /** Match confidence of the underlying pair (1 for existence issues). */
+  confidence: number;
+}
+
+/** Canonical comparison output (spec §8 report.json, Layer A scope). */
+export interface ComparisonReport {
+  design: { fileKey: string; frameId: string; frameName: string };
+  live: { url: string; viewport: { width: number; height: number } };
+  comparedAt: string; // ISO timestamp
+  /** Uniform scale applied to design coordinates (liveWidth / designWidth). */
+  scale: number;
+  warnings: string[];
+  summary: {
+    pointersChecked: number;
+    passed: number;
+    failed: number;
+    skipped: number;
+    issuesBySeverity: Record<Severity, number>;
+  };
+  matching: {
+    matched: number;
+    designOnly: number;
+    liveOnly: number;
+    pairs: Array<{ figmaNodeId: string; selector: string; method: MatchMethod; confidence: number }>;
+  };
+  evaluations: PointerEvaluation[];
+  issues: Issue[];
+}

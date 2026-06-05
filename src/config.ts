@@ -10,6 +10,8 @@ import { readFile } from 'node:fs/promises';
 export interface Tolerances {
   positionPx: number;
   sizePx: number;
+  /** Auto-layout gap/padding tolerance (spacing pointers, §6.4). */
+  spacingPx: number;
   colorDeltaE: number;
   fontSizeExact: boolean;
 }
@@ -50,6 +52,7 @@ export const DEFAULT_CONFIG: DesignQaConfig = {
   tolerances: {
     positionPx: 4,
     sizePx: 2,
+    spacingPx: 2,
     colorDeltaE: 3,
     fontSizeExact: true,
   },
@@ -124,6 +127,7 @@ export function resolveConfig(raw: unknown): DesignQaConfig {
     }
     if (tol.positionPx !== undefined) config.tolerances.positionPx = expectNumber(tol.positionPx, 'tolerances.positionPx');
     if (tol.sizePx !== undefined) config.tolerances.sizePx = expectNumber(tol.sizePx, 'tolerances.sizePx');
+    if (tol.spacingPx !== undefined) config.tolerances.spacingPx = expectNumber(tol.spacingPx, 'tolerances.spacingPx');
     if (tol.colorDeltaE !== undefined) config.tolerances.colorDeltaE = expectNumber(tol.colorDeltaE, 'tolerances.colorDeltaE');
     if (tol.fontSizeExact !== undefined) {
       if (typeof tol.fontSizeExact !== 'boolean') throw new ConfigError('tolerances.fontSizeExact must be a boolean.');

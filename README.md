@@ -2,7 +2,7 @@
 
 An agent that compares a **Figma design** against a **live web app** and reports every mismatch as a severity-graded issue. Built phase by phase from `figma-design-qa-agent-spec.md`.
 
-**Current status: Phase 2** — both sides of the comparison now exist. A Figma frame URL produces a normalized design tree; a live page URL produces a comparable live tree in the *same schema*, plus screenshots. Phase 3 (matching + spec diff) compares them.
+**Current status: Phase 3** — the comparison works. Extract a Figma frame, capture the live page, run `compare`, and get a severity-graded issue list: *expected `#2D6CDF`, got `#3A78E0` (ΔE 6.1 > 3)*. This is Layer A (deterministic spec diff); pixel diff and the HTML report arrive in Phase 4.
 
 ## Setup
 
@@ -46,6 +46,23 @@ Outputs per viewport:
 - `live-tree-<page>@<width>.json` — the normalized live tree (same schema as the design tree)
 - `page-<page>@<width>.png` — full-page screenshot (Phase 4 crops evidence regions from it)
 
+### Compare the two (Phase 3)
+
+```bash
+npm run dev -- compare --design design-qa-output/design-tree-12-345.json \
+                       --live design-qa-output/live-tree-app-example-com-checkout@1440.json
+```
+
+Prints a severity-graded issue list and writes `report.json` (the canonical §8 artifact):
+
+```
+✔ Report ready: ./design-qa-output/report.json
+  40 pointers checked · 25 passed · 7 failed · 8 deferred to later phases
+  Critical 1 · High 3 · Medium 3 · Low 0 · Info 0
+  🔴 [existence] Trust badges — expected INSTANCE "Trust badges" present, got no matching element in the DOM
+  🟠 [color.background] Button / Sign up — expected #1D5CCF, got #2D6CDF
+```
+
 ## Module map (why each exists)
 
 | Module | Why |
@@ -59,7 +76,11 @@ Outputs per viewport:
 | `src/web/snapshot.ts` | The in-page collector, serialized into the browser by Playwright — so it must be self-contained. Returns a raw JSON DOM snapshot (tag, attrs, computed styles, bbox, text); no shaping happens in the page, keeping the interesting logic testable without a browser. |
 | `src/web/normalizer.ts` | Raw DOM snapshot → normalized tree, mirror of the Figma normalizer. CSS colors → hex, flexbox → auto-layout, font-weight keywords → numbers. Direct text becomes a **synthetic TEXT child** (fills = text color) so DOM trees have the same shape as Figma trees (Button → TEXT). |
 | `src/web/capturer.ts` | Playwright plumbing: viewport → goto → wait for network idle **and** `document.fonts.ready` (late font swaps would corrupt typography) → snapshot + full-page screenshot. |
-| `src/cli.ts` | `design-qa extract …` (Phase 1), `design-qa capture …` (Phase 2). `design-qa run` is reserved for the full pipeline. |
+| `src/compare/color.ts` | Perceptual color difference: sRGB → Lab → **CIEDE2000**, not hex equality (spec §15). Tests pin the published Sharma et al. reference values. |
+| `src/compare/matcher.ts` | The hard part (spec §6.3): aligns Figma nodes ↔ DOM elements in four passes — `data-figma-id` attribute (exact), text content, **anchor propagation** (a matched text pulls its parents together), geometry. Every pair logs its method + confidence. Hidden DOM elements can only be claimed by explicit signals, never by geometry. |
+| `src/compare/pointers.ts` | Builds + evaluates the checkpoints per matched pair (spec §6.4): existence, position, size, color (ΔE), typography, spacing, text. `asset`/`visual` are emitted as *skipped* so the pointer count stays honest about what wasn't checked yet. |
+| `src/compare/engine.ts` | Layer A orchestration (spec §6.5): match → evaluate → grade severities (§7) → canonical `report.json` (§8). Positions compare frame-relative design coords against page coords — the frame's top-left ↔ the page's (0,0). |
+| `src/cli.ts` | `design-qa extract …` (Phase 1), `design-qa capture …` (Phase 2), `design-qa compare …` (Phase 3). `design-qa run` is reserved for the one-command pipeline. |
 
 ## Tests
 
@@ -67,13 +88,13 @@ Outputs per viewport:
 npm test
 ```
 
-Tests cover both normalizers (against realistic raw-Figma and raw-DOM fixtures), the config loader, and URL parsing — no network and no browser needed.
+Tests cover both normalizers (against realistic raw-Figma and raw-DOM fixtures), CIEDE2000 (reference dataset values), the matcher (each pass + bucket rules), the comparison engine (a seeded-regression end-to-end), the config loader, and URL parsing — no network and no browser needed.
 
 ## Roadmap (spec §10)
 
 1. ✅ **Phase 1** — Figma extraction (REST) → normalized tree + PNG
 2. ✅ **Phase 2** — Web capture (Playwright) → comparable live tree + screenshots
-3. ⬜ **Phase 3** — Element matching + deterministic spec diff (Layer A)
+3. ✅ **Phase 3** — Element matching + deterministic spec diff (Layer A) → severity-graded `report.json`
 4. ⬜ **Phase 4** — Pixel diff (Layer B) + HTML report
 5. ⬜ **Phase 5** — Vision adjudication with Claude (Layer C)
 6. ⬜ **Phase 6** — CI gating, Dev Mode MCP source, multi-viewport

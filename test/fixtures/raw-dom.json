@@ -114,6 +114,7 @@
             "columnGap": "normal"
           },
           "text": "Create your account",
+          "textBBox": { "x": 568, "y": 233, "width": 304, "height": 36 },
           "children": []
         },
         {
@@ -154,6 +155,7 @@
             "columnGap": "8px"
           },
           "text": "Sign up",
+          "textBBox": { "x": 688, "y": 552, "width": 64, "height": 24 },
           "children": []
         },
         {

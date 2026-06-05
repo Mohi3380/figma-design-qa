@@ -89,9 +89,10 @@ function syntheticTextNode(raw: RawDomNode): NormalizedNode {
     type: 'TEXT',
     visible: styles.visibility !== 'hidden',
     opacity: 1,
-    // The text shares the element's box; a tighter range box isn't worth
-    // the in-page cost until a pointer needs it.
-    bbox: normalizeBBox(raw.bbox),
+    // Glyph-tight bounds measured in-page (Range rects) — Figma TEXT boxes
+    // hug the glyphs, so comparing against the element box would be a
+    // guaranteed false positive. Element box only as a fallback.
+    bbox: normalizeBBox(raw.textBBox ?? raw.bbox),
     fills,
     strokes: [],
     text: raw.text,

@@ -136,6 +136,8 @@ describe('normalizeDomTree', () => {
     expect(text.type).toBe('TEXT');
     expect(text.id).toBe('#signup-card > h1::text');
     expect(text.text).toBe('Create your account');
+    // glyph-tight Range bounds, not the element box
+    expect(text.bbox).toEqual({ x: 568, y: 233, width: 304, height: 36 });
     // text color becomes the TEXT node's fill, like Figma
     expect(text.fills[0].color?.hex).toBe('#1A1A2E');
     expect(text.typography).toEqual({
@@ -159,6 +161,10 @@ describe('normalizeDomTree', () => {
     expect(hiddenP.visible).toBe(false);
     expect(hiddenP.opacity).toBe(0.5);
     expect(hiddenP.children[0].visible).toBe(false); // synthetic text inherits
+  });
+
+  it('falls back to the element box when no textBBox was measured', () => {
+    expect(hiddenP.children[0].bbox).toEqual(hiddenP.bbox); // fixture has no textBBox here
   });
 
   it('names nodes from aria-label > id > text > tag', () => {
