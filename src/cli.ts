@@ -10,7 +10,12 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { Command } from 'commander';
+import { loadDotenv } from './env.js';
 import { compare } from './compare/engine.js';
+
+// Pick up FIGMA_TOKEN / ANTHROPIC_API_KEY from a local .env before anything
+// reads process.env. Real env vars still take precedence.
+loadDotenv();
 import { adjudicateIssues, VisionError } from './compare/vision.js';
 import { loadConfig, ConfigError, type DesignQaConfig } from './config.js';
 import { FigmaClient, FigmaApiError } from './figma/api.js';
