@@ -88,6 +88,14 @@ npm run dev -- run --figma "https://figma.com/design/AbC123/Checkout?node-id=12-
 
 `run` captures at the design frame's own width by default (override with `--viewport`), so positions compare 1:1 against the frame the designer actually drew (spec §11).
 
+### Or use the web UI
+
+```bash
+npm run dev -- serve            # http://127.0.0.1:4100
+```
+
+Opens a local page: paste the Figma URL + site URL, click **Run QA**, watch progress stream in, and view the report inline. It wraps the same pipeline as `run` (one shared code path in `src/pipeline.ts`) — so the CLI and the UI never diverge. Binds to localhost only, since it runs with your local `FIGMA_TOKEN` / `ANTHROPIC_API_KEY`.
+
 ## Module map (why each exists)
 
 | Module | Why |
@@ -111,7 +119,9 @@ npm run dev -- run --figma "https://figma.com/design/AbC123/Checkout?node-id=12-
 | `src/report/html.ts` | The reporter (spec §6.6): `ComparisonReport` → one self-contained HTML file, evidence inlined as data URIs, issues grouped by element and ordered by worst severity. Pure render, no I/O. |
 | `src/report/write.ts` | Writes the two §8 artifacts: `report.json` (canonical, relative evidence paths) and `report.html` (inlined). |
 | `src/report/pdf.ts` | `report.html` → `report.pdf` via Chromium's print engine (`printBackground: true` — severity badges and chips are CSS backgrounds and would otherwise vanish). |
-| `src/cli.ts` | `extract` (Phase 1), `capture` (Phase 2), `compare` (Phases 3–4), and `run` — the full two-URL pipeline (§14). |
+| `src/pipeline.ts` | The full two-URL pipeline as one reusable function (extract → capture → compare → pixel diff → vision → report). Both `run` and the web UI call it, so they never diverge. |
+| `src/web-ui/server.ts` | The web UI (Phase 7): a dependency-free `http` server — `/` (the single-page app), `/run` (SSE pipeline progress), `/report` (the inline report). Localhost-bound. |
+| `src/cli.ts` | `extract` (Phase 1), `capture` (Phase 2), `compare` (Phases 3–4), `run` — the two-URL pipeline (§14) — and `serve` — the web UI (Phase 7). |
 
 ## Tests
 
@@ -129,3 +139,4 @@ Tests cover both normalizers (against realistic raw-Figma and raw-DOM fixtures),
 4. ✅ **Phase 4** — Pixel diff (Layer B) + evidence images + self-contained `report.html` + `design-qa run`
 5. ✅ **Phase 5** — Vision adjudication with Claude (Layer C): noise filtering, severity re-grades, human explanations
 6. ⬜ **Phase 6** — CI gating, Dev Mode MCP source, multi-viewport
+7. ✅ **Phase 7** — Web UI (`design-qa serve`): paste two URLs, stream progress, view the report inline

@@ -16,11 +16,13 @@ import { loadConfig, ConfigError, type DesignQaConfig } from './config.js';
 import { FigmaClient, FigmaApiError } from './figma/api.js';
 import { extractFrame } from './figma/extractor.js';
 import { parseFigmaUrl, normalizeNodeId, FigmaUrlError } from './figma/url.js';
+import { runPipeline, PipelineError } from './pipeline.js';
 import { applyPixelDiff } from './report/evidence.js';
 import { renderPdf } from './report/pdf.js';
 import { writeReports } from './report/write.js';
 import type { ComparisonReport, DesignExtraction, LiveCapture, Severity } from './types.js';
 import { captureUrl, WebCaptureError } from './web/capturer.js';
+import { serve } from './web-ui/server.js';
 
 const program = new Command();
 
@@ -206,72 +208,53 @@ program
     }) => {
       try {
         const config = await loadConfig(opts.config);
-        const ref = parseFigmaUrl(opts.figma);
-        if (!ref.nodeId) {
-          fail('The Figma URL has no node-id — copy the frame link (right-click the frame → Copy link).');
+        let viewport: number | undefined;
+        if (opts.viewport) {
+          viewport = Number(opts.viewport);
+          if (!Number.isInteger(viewport) || viewport <= 0) {
+            fail(`--viewport must be a positive integer, got "${opts.viewport}".`);
+          }
         }
 
-        const client = new FigmaClient({ token: process.env.FIGMA_TOKEN ?? '' });
-        const log = (msg: string) => console.log(`▸ ${msg}`);
-
-        const extracted = await extractFrame({
-          fileKey: ref.fileKey,
-          nodeId: ref.nodeId,
+        const result = await runPipeline({
+          figmaUrl: opts.figma,
+          target: opts.target,
+          viewport,
+          config,
           outDir: opts.out,
-          client,
-          log,
+          vision: opts.vision,
+          pdf: opts.pdf,
+          figmaToken: process.env.FIGMA_TOKEN,
+          anthropicKey: process.env.ANTHROPIC_API_KEY,
+          log: (msg) => console.log(`▸ ${msg}`),
         });
-
-        // Capture at the frame's own width unless told otherwise — that's
-        // the viewport the design was drawn for (spec §11: only compare a
-        // viewport that has a matching frame).
-        const frameWidth = Math.round(extracted.extraction.tree.bbox?.width ?? config.viewports[0]);
-        const viewport = opts.viewport ? Number(opts.viewport) : frameWidth;
-        if (!Number.isInteger(viewport) || viewport <= 0) {
-          fail(`--viewport must be a positive integer, got "${opts.viewport}".`);
-        }
-
-        const [captured] = await captureUrl({
-          url: opts.target,
-          viewports: [viewport],
-          outDir: opts.out,
-          mappingAttribute: config.matching.preferAttribute,
-          log,
-        });
-
-        log(`Comparing "${extracted.extraction.frameName}" ↔ ${opts.target} @ ${viewport}px…`);
-        const report = compare(extracted.extraction, captured.capture, config);
-
-        await applyPixelDiff(report, {
-          design: extracted.extraction,
-          live: captured.capture,
-          framePng: await readFile(extracted.pngPaths['1x']),
-          pagePng: await readFile(captured.screenshotPath),
-          outDir: opts.out,
-          visualMismatchPct: config.tolerances.visualMismatchPct,
-          log,
-        });
-
-        await maybeAdjudicate(report, config, opts.out, opts.vision);
-
-        const written = await writeReports(report, opts.out);
-        let headline = written.htmlPath ?? written.jsonPath;
-        if (opts.pdf && written.htmlPath) {
-          headline = await renderPdf(written.htmlPath, path.join(opts.out, 'report.pdf'));
-        }
-        printReport(report, headline);
+        printReport(result.report, result.pdfPath ?? result.htmlPath ?? result.jsonPath);
       } catch (err) {
         handleError(err);
       }
     },
   );
 
+program
+  .command('serve')
+  .description('Launch the web UI: paste two URLs in the browser, view the report inline.')
+  .option('--port <port>', 'Port to listen on', '4100')
+  .option('--host <host>', 'Host to bind', '127.0.0.1')
+  .option('--config <path>', 'Path to design-qa.config.json', 'design-qa.config.json')
+  .option('--out <dir>', 'Output directory', './design-qa-output')
+  .action(async (opts: { port: string; host: string; config: string; out: string }) => {
+    const port = Number(opts.port);
+    if (!Number.isInteger(port) || port <= 0) fail(`--port must be a positive integer, got "${opts.port}".`);
+    await serve({ port, host: opts.host, configPath: opts.config, outDir: opts.out });
+  });
+
 function handleError(err: unknown): never {
   if (
     err instanceof ConfigError ||
     err instanceof FigmaUrlError ||
     err instanceof FigmaApiError ||
-    err instanceof WebCaptureError
+    err instanceof WebCaptureError ||
+    err instanceof PipelineError
   ) {
     fail(err.message);
   }
