@@ -115,6 +115,7 @@ Opens the **KODERLABS Design QA** page: paste the Figma URL + App URL, click **R
 | `src/figma/url.ts` | Pasted Figma URLs come in several shapes (`/design/`, `/file/`, branches) and encode node ids as `12-345`; the API wants `12:345`. |
 | `src/figma/api.ts` | Thin REST client (`/v1/files/:key/nodes`, `/v1/images/:key`). Fetch is injectable so it's testable offline. |
 | `src/figma/normalizer.ts` | Raw Figma JSON → normalized tree. Colors (0..1 floats → hex), auto-layout (→ flex-like values), defaults (`visible`, `opacity`). All source quirks are absorbed **here and nowhere else**. |
+| `src/figma/mcp.ts` | Phase 6 **Figma MCP source**: parses Dev Mode / claude.ai MCP `get_metadata` XML into the same `DesignExtraction` the REST path emits — no personal-access token needed. Geometry only (id/type/name/bbox); MCP metadata carries no colors or typography, so it powers existence/position/size + the pixel diff. `design-qa extract --mcp-metadata <xml> --node-id <id> --frame-png <png>`. |
 | `src/figma/extractor.ts` | Orchestrates fetch → normalize → write artifacts. Pure plumbing, kept separate so the pieces stay independently testable. |
 | `src/web/snapshot.ts` | The in-page collector, serialized into the browser by Playwright — so it must be self-contained. Returns a raw JSON DOM snapshot (tag, attrs, computed styles, bbox, text); no shaping happens in the page, keeping the interesting logic testable without a browser. |
 | `src/web/normalizer.ts` | Raw DOM snapshot → normalized tree, mirror of the Figma normalizer. CSS colors → hex, flexbox → auto-layout, font-weight keywords → numbers. Direct text becomes a **synthetic TEXT child** (fills = text color) so DOM trees have the same shape as Figma trees (Button → TEXT). |
@@ -148,5 +149,5 @@ Tests cover both normalizers (against realistic raw-Figma and raw-DOM fixtures),
 3. ✅ **Phase 3** — Element matching + deterministic spec diff (Layer A) → severity-graded `report.json`
 4. ✅ **Phase 4** — Pixel diff (Layer B) + evidence images + self-contained `report.html` + `design-qa run`
 5. ✅ **Phase 5** — Vision adjudication with Claude (Layer C): noise filtering, severity re-grades, human explanations
-6. ⬜ **Phase 6** — CI gating, Dev Mode MCP source, multi-viewport
+6. 🟡 **Phase 6** — Dev Mode MCP source ✅ (`extract --mcp-metadata`, no token); CI gating + multi-viewport still to do
 7. ✅ **Phase 7** — Web UI (`design-qa serve`): paste two URLs, stream progress, view the report inline

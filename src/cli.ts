@@ -7,7 +7,7 @@
  * The `run` command (extract + capture + compare + report) arrives with
  * later phases; its flags are reserved here so the contract is visible.
  */
-import { readFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { Command } from 'commander';
 import { loadDotenv } from './env.js';
@@ -20,6 +20,7 @@ import { adjudicateIssues, VisionError } from './compare/vision.js';
 import { loadConfig, ConfigError, type DesignQaConfig } from './config.js';
 import { FigmaClient, FigmaApiError } from './figma/api.js';
 import { extractFrame } from './figma/extractor.js';
+import { mcpExtraction, McpParseError } from './figma/mcp.js';
 import { parseFigmaUrl, normalizeNodeId, FigmaUrlError } from './figma/url.js';
 import { runPipeline, PipelineError } from './pipeline.js';
 import { applyPixelDiff } from './report/evidence.js';
@@ -44,9 +45,18 @@ program
   .option('--node-id <id>', 'Figma node id, e.g. 12:345 or 12-345 (alternative to --figma)')
   .option('--config <path>', 'Path to design-qa.config.json', 'design-qa.config.json')
   .option('--out <dir>', 'Output directory', './design-qa-output')
-  .action(async (opts: { figma?: string; fileKey?: string; nodeId?: string; config: string; out: string }) => {
+  .option('--mcp-metadata <file>', 'Use Figma MCP get_metadata XML instead of the REST API (no token; geometry only)')
+  .option('--frame-png <path>', 'Frame screenshot to record (required with --mcp-metadata)')
+  .action(async (opts: { figma?: string; fileKey?: string; nodeId?: string; config: string; out: string; mcpMetadata?: string; framePng?: string }) => {
     try {
       const config = await loadConfig(opts.config);
+
+      // MCP source (Phase 6): build the design tree from get_metadata XML +
+      // a get_screenshot PNG, with no REST call and no personal-access token.
+      if (opts.mcpMetadata) {
+        await extractViaMcp(opts, config);
+        return;
+      }
 
       // Resolve fileKey/nodeId: explicit flags > --figma URL > config file.
       let fileKey = opts.fileKey;
@@ -91,7 +101,8 @@ program
   .option('--viewports <widths>', 'Comma-separated viewport widths, e.g. 1440,768,375')
   .option('--config <path>', 'Path to design-qa.config.json', 'design-qa.config.json')
   .option('--out <dir>', 'Output directory', './design-qa-output')
-  .action(async (opts: { target?: string; viewports?: string; config: string; out: string }) => {
+  .option('--headed', 'Show the capture browser window (watch it run)')
+  .action(async (opts: { target?: string; viewports?: string; config: string; out: string; headed?: boolean }) => {
     try {
       const config = await loadConfig(opts.config);
 
@@ -118,6 +129,7 @@ program
         viewports,
         outDir: opts.out,
         mappingAttribute: config.matching.preferAttribute,
+        headed: opts.headed,
         log: (msg) => console.log(`▸ ${msg}`),
       });
 
@@ -256,13 +268,74 @@ program
     await serve({ port, host: opts.host, configPath: opts.config, outDir: opts.out });
   });
 
+/** Phase 6 MCP source: design tree from get_metadata XML + a get_screenshot
+ * PNG. Writes the same design-tree artifact the REST `extract` produces. */
+async function extractViaMcp(
+  opts: { figma?: string; fileKey?: string; nodeId?: string; out: string; mcpMetadata?: string; framePng?: string },
+  config: DesignQaConfig,
+): Promise<void> {
+  let fileKey = opts.fileKey;
+  let nodeId = opts.nodeId ? normalizeNodeId(opts.nodeId) : undefined;
+  if (opts.figma) {
+    const ref = parseFigmaUrl(opts.figma);
+    fileKey ??= ref.fileKey;
+    nodeId ??= ref.nodeId;
+  }
+  fileKey ??= config.figma.fileKey;
+  nodeId ??= config.figma.frames[0] ? normalizeNodeId(config.figma.frames[0]) : undefined;
+  if (!nodeId) fail('Need a --node-id (or a --figma URL with node-id) to pick the frame from the MCP metadata.');
+  if (!opts.framePng) fail('--mcp-metadata needs --frame-png <path> (the get_screenshot PNG of that node).');
+
+  const raw = await readFile(opts.mcpMetadata!, 'utf8');
+  const extraction = mcpExtraction(unwrapMcpResult(raw), nodeId, fileKey ?? 'mcp');
+
+  await mkdir(opts.out, { recursive: true });
+  const slug = nodeId.replace(/[^a-zA-Z0-9]+/g, '-');
+  const treePath = path.join(opts.out, `design-tree-${slug}.json`);
+  await writeFile(treePath, JSON.stringify(extraction, null, 2), 'utf8');
+  const pngPath = path.join(opts.out, `frame-${slug}@1x.png`);
+  await copyFile(opts.framePng!, pngPath);
+
+  const count = countNodes(extraction.tree);
+  console.log(`▸ Parsed MCP metadata → "${extraction.frameName}" (${nodeId}), ${count} nodes`);
+  console.log(`\n✔ Extracted via Figma MCP (geometry only — no colors/typography)`);
+  console.log(`  tree: ${treePath}`);
+  console.log(`  png:  ${pngPath}`);
+}
+
+/** The MCP tool result is saved as JSON `[{type,text}]`; unwrap to the raw
+ * XML. A plain .xml file passes through untouched. */
+function unwrapMcpResult(raw: string): string {
+  const trimmed = raw.trimStart();
+  if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(raw);
+      const arr = Array.isArray(parsed) ? parsed : [parsed];
+      const texts = arr
+        .map((e: unknown) => (e && typeof (e as { text?: unknown }).text === 'string' ? (e as { text: string }).text : ''))
+        .filter(Boolean);
+      if (texts.length) return texts.join('\n');
+    } catch {
+      // not JSON — fall through and treat as raw XML
+    }
+  }
+  return raw;
+}
+
+function countNodes(node: { children: unknown[] }): number {
+  let n = 1;
+  for (const child of node.children as { children: unknown[] }[]) n += countNodes(child);
+  return n;
+}
+
 function handleError(err: unknown): never {
   if (
     err instanceof ConfigError ||
     err instanceof FigmaUrlError ||
     err instanceof FigmaApiError ||
     err instanceof WebCaptureError ||
-    err instanceof PipelineError
+    err instanceof PipelineError ||
+    err instanceof McpParseError
   ) {
     fail(err.message);
   }
