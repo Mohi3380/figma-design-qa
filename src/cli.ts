@@ -201,6 +201,7 @@ program
   .option('--out <dir>', 'Output directory', './design-qa-output')
   .option('--no-pdf', 'Skip the PDF report')
   .option('--no-vision', 'Skip the vision adjudication layer')
+  .option('--headed', 'Show the capture browser window (watch it run)')
   .action(
     async (opts: {
       figma: string;
@@ -210,6 +211,7 @@ program
       out: string;
       pdf: boolean;
       vision: boolean;
+      headed?: boolean;
     }) => {
       try {
         const config = await loadConfig(opts.config);
@@ -229,6 +231,7 @@ program
           outDir: opts.out,
           vision: opts.vision,
           pdf: opts.pdf,
+          headed: opts.headed,
           figmaToken: process.env.FIGMA_TOKEN,
           anthropicKey: process.env.ANTHROPIC_API_KEY,
           log: (msg) => console.log(`▸ ${msg}`),

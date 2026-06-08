@@ -32,6 +32,8 @@ export interface RunPipelineOptions {
   vision: boolean;
   /** Render report.pdf in addition to .html/.json. */
   pdf: boolean;
+  /** Launch a visible browser during capture. */
+  headed?: boolean;
   figmaToken?: string;
   anthropicKey?: string;
   log?: (message: string) => void;
@@ -75,6 +77,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<RunPipeline
     viewports: [viewport],
     outDir: opts.outDir,
     mappingAttribute: opts.config.matching.preferAttribute,
+    headed: opts.headed,
     log,
   });
 

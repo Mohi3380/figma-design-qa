@@ -33,6 +33,8 @@ export interface CaptureOptions {
   mappingAttribute: string;
   /** Injectable for tests; defaults to launching headless Chromium. */
   browser?: Browser;
+  /** Launch a visible browser window so the capture can be watched. */
+  headed?: boolean;
   log?: (message: string) => void;
 }
 
@@ -52,7 +54,10 @@ export async function captureUrl(options: CaptureOptions): Promise<ViewportCaptu
 
   await mkdir(outDir, { recursive: true });
 
-  const browser = options.browser ?? (await chromium.launch());
+  // Headed launch is slowed slightly so the page is watchable; headless is
+  // the default for CI and the deterministic pipeline.
+  const browser =
+    options.browser ?? (await chromium.launch({ headless: !options.headed, slowMo: options.headed ? 200 : 0 }));
   const ownsBrowser = !options.browser;
   try {
     const results: ViewportCapture[] = [];
@@ -94,6 +99,9 @@ export async function captureUrl(options: CaptureOptions): Promise<ViewportCaptu
         const screenshotPath = path.join(outDir, `page-${slug}@${width}.png`);
         await page.screenshot({ path: screenshotPath, fullPage: true });
         log(`Wrote ${screenshotPath}`);
+
+        // Keep the window up briefly in headed mode so it can be watched.
+        if (options.headed) await page.waitForTimeout(2500);
 
         results.push({ capture, treePath, screenshotPath });
       } finally {
