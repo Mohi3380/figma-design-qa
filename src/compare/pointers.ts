@@ -17,6 +17,7 @@ import type { PointerType, Tolerances } from '../config.js';
 import type { BBox, MatchedPair, NormalizedNode, PointerEvaluation, ResolvedPaint } from '../types.js';
 import { deltaErgb } from './color.js';
 import { normalizeText } from './matcher.js';
+import { textSimilarity } from './similarity.js';
 
 export interface EvaluateOptions {
   tolerances: Tolerances;
@@ -102,10 +103,40 @@ export function evaluatePair(pair: MatchedPair, options: EvaluateOptions): Point
     push(compareText(pair));
   }
 
-  if (enabled.has('asset')) {
-    push({ pointer: 'asset', result: 'skipped', note: 'needs exported-asset diff — Phase 4' });
+  // Icons & images (spec §6.4 `asset`). When the design node is a graphic
+  // asset, the asset pointer owns its visual check (region diff in Layer B),
+  // so we don't also emit a generic `visual` for it.
+  const isAsset = enabled.has('asset') && Boolean(pair.design.asset);
+  if (isAsset) {
+    const kind = pair.design.asset!.kind;
+    if (!pair.live.asset) {
+      push({
+        pointer: 'asset',
+        result: 'fail',
+        expected: `${kind} present`,
+        actual: `"${pair.live.name}" is not a graphic asset (${pair.live.type})`,
+      });
+    } else {
+      // Visual sameness of the icon/image → region diff, filled by Layer B.
+      push({ pointer: 'asset', result: 'skipped', note: `${kind} — region pixel diff in Layer B` });
+
+      // Pixelation: a live image displayed far larger than its source is upscaled.
+      const live = pair.live.asset;
+      if (live.kind === 'image' && live.naturalWidth && lBox && lBox.width > live.naturalWidth * 1.5) {
+        const ratio = round1(lBox.width / live.naturalWidth);
+        push({
+          pointer: 'asset.resolution',
+          result: 'fail',
+          expected: 'source resolution ≥ displayed size',
+          actual: `${round1(lBox.width)}px wide from a ${live.naturalWidth}px source (${ratio}× upscaled — pixelated)`,
+          tolerance: '≤ 1.5× upscale',
+          delta: ratio,
+        });
+      }
+    }
   }
-  if (enabled.has('visual')) {
+
+  if (enabled.has('visual') && !isAsset) {
     push({ pointer: 'visual', result: 'skipped', note: 'needs region pixel diff — Phase 4' });
   }
 
@@ -275,15 +306,28 @@ function compareText(pair: MatchedPair): Omit<PointerEvaluation, 'figmaNodeId' |
   const caseTransformed = pair.design.typography?.textCase || pair.live.typography?.textCase;
   const a = caseTransformed ? normalizeText(expected) : expected.replace(/\s+/g, ' ').trim();
   const b = caseTransformed ? normalizeText(actual) : actual.replace(/\s+/g, ' ').trim();
+
+  // Fuzzy: exact (or case-equal) passes; near-identical copy passes as a minor
+  // drift; clearly different copy fails. `delta` carries the similarity so the
+  // engine can grade "reworded" softer than "completely different".
+  const similar = textSimilarity(a, b);
+  const result: PointerEvaluation['result'] = a === b || similar >= 0.92 ? 'pass' : 'fail';
   return {
     pointer: 'text',
-    result: a === b ? 'pass' : 'fail',
+    result,
     expected: `"${expected}"`,
     actual: `"${actual}"`,
-    tolerance: caseTransformed ? 'case-insensitive (text-transform present)' : 'exact',
+    tolerance: caseTransformed
+      ? `case-insensitive · ${Math.round(similar * 100)}% similar`
+      : `${Math.round(similar * 100)}% similar (pass ≥ 92%)`,
+    delta: round2(similar),
   };
 }
 
 function round1(n: number): number {
   return Math.round(n * 10) / 10;
+}
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
 }

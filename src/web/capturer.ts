@@ -35,13 +35,28 @@ export interface CaptureOptions {
   browser?: Browser;
   /** Launch a visible browser window so the capture can be watched. */
   headed?: boolean;
+  /** Interactions to perform after the base capture — click a trigger
+   * (e.g. a button that opens a modal) and capture the resulting state.
+   * Each produces an extra ViewportCapture tagged with `state`. */
+  interactions?: Interaction[];
   log?: (message: string) => void;
+}
+
+export interface Interaction {
+  /** CSS selector (or text=...) to click. */
+  click: string;
+  /** Short label for filenames/logs, e.g. "menu" or "login-modal". */
+  label?: string;
+  /** ms to wait after clicking for the new state to settle (default 600). */
+  waitMs?: number;
 }
 
 export interface ViewportCapture {
   capture: LiveCapture;
   treePath: string;
   screenshotPath: string;
+  /** Interaction state this capture represents; undefined = the base page. */
+  state?: string;
 }
 
 /** Viewport heights are nominal — full-page snapshot/screenshot capture
@@ -75,35 +90,51 @@ export async function captureUrl(options: CaptureOptions): Promise<ViewportCaptu
         // Late font swaps would corrupt typography + text boxes.
         await page.evaluate(() => document.fonts.ready.then(() => undefined));
 
-        const raw = (await page.evaluate(snapshotDom, {
-          mappingAttribute,
-          styleProps: CAPTURED_STYLES as unknown as string[],
-        })) as RawDomNode | null;
-        if (!raw) {
-          throw new WebCaptureError(`Nothing rendered at ${url} (empty <body>).`);
-        }
+        const slug = slugFor(url);
 
-        const capture: LiveCapture = {
-          source: 'playwright',
-          url,
-          viewport: { width, height },
-          capturedAt: new Date().toISOString(),
-          tree: normalizeDomTree(raw),
+        // Snapshot the current page state and write its tree + screenshot.
+        const captureState = async (state?: string): Promise<void> => {
+          const raw = (await page.evaluate(snapshotDom, {
+            mappingAttribute,
+            styleProps: CAPTURED_STYLES as unknown as string[],
+          })) as RawDomNode | null;
+          if (!raw) throw new WebCaptureError(`Nothing rendered at ${url} (empty <body>).`);
+
+          const capture: LiveCapture = {
+            source: 'playwright',
+            url,
+            viewport: { width, height },
+            capturedAt: new Date().toISOString(),
+            tree: normalizeDomTree(raw),
+          };
+
+          const tag = state ? `-${state}` : '';
+          const treePath = path.join(outDir, `live-tree-${slug}${tag}@${width}.json`);
+          await writeFile(treePath, JSON.stringify(capture, null, 2), 'utf8');
+          log(`Wrote ${treePath}`);
+
+          const screenshotPath = path.join(outDir, `page-${slug}${tag}@${width}.png`);
+          await page.screenshot({ path: screenshotPath, fullPage: true });
+          log(`Wrote ${screenshotPath}`);
+
+          if (options.headed) await page.waitForTimeout(2500);
+          results.push({ capture, treePath, screenshotPath, state });
         };
 
-        const slug = slugFor(url);
-        const treePath = path.join(outDir, `live-tree-${slug}@${width}.json`);
-        await writeFile(treePath, JSON.stringify(capture, null, 2), 'utf8');
-        log(`Wrote ${treePath}`);
+        await captureState();
 
-        const screenshotPath = path.join(outDir, `page-${slug}@${width}.png`);
-        await page.screenshot({ path: screenshotPath, fullPage: true });
-        log(`Wrote ${screenshotPath}`);
-
-        // Keep the window up briefly in headed mode so it can be watched.
-        if (options.headed) await page.waitForTimeout(2500);
-
-        results.push({ capture, treePath, screenshotPath });
+        // Interactions: click a trigger, let the new state settle, capture it.
+        for (const [i, action] of (options.interactions ?? []).entries()) {
+          const label = (action.label ?? `state${i + 2}`).replace(/[^a-zA-Z0-9]+/g, '-');
+          log(`Clicking "${action.click}" → capturing "${label}"…`);
+          try {
+            await page.click(action.click, { timeout: 5000 });
+          } catch {
+            throw new WebCaptureError(`Could not click "${action.click}" — selector not found or not clickable.`);
+          }
+          await page.waitForTimeout(action.waitMs ?? 600);
+          await captureState(label);
+        }
       } finally {
         await page.close();
       }

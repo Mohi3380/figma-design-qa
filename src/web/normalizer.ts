@@ -56,6 +56,12 @@ export function normalizeDomTree(raw: RawDomNode): NormalizedNode {
 
   if (Object.keys(raw.attributes).length > 0) node.attributes = { ...raw.attributes };
 
+  if (raw.asset) {
+    node.asset = { kind: raw.asset.kind };
+    if (raw.asset.naturalWidth > 0) node.asset.naturalWidth = raw.asset.naturalWidth;
+    if (raw.asset.naturalHeight > 0) node.asset.naturalHeight = raw.asset.naturalHeight;
+  }
+
   // Direct text → synthetic TEXT child (fills = text color), so DOM trees
   // have the same shape as Figma trees: container node → TEXT node.
   if (raw.text) {

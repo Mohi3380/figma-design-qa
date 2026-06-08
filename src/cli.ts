@@ -102,7 +102,8 @@ program
   .option('--config <path>', 'Path to design-qa.config.json', 'design-qa.config.json')
   .option('--out <dir>', 'Output directory', './design-qa-output')
   .option('--headed', 'Show the capture browser window (watch it run)')
-  .action(async (opts: { target?: string; viewports?: string; config: string; out: string; headed?: boolean }) => {
+  .option('--click <selector...>', 'After the base capture, click each selector and capture the resulting state (modals, menus)')
+  .action(async (opts: { target?: string; viewports?: string; config: string; out: string; headed?: boolean; click?: string[] }) => {
     try {
       const config = await loadConfig(opts.config);
 
@@ -130,12 +131,14 @@ program
         outDir: opts.out,
         mappingAttribute: config.matching.preferAttribute,
         headed: opts.headed,
+        interactions: (opts.click ?? []).map((click) => ({ click })),
         log: (msg) => console.log(`▸ ${msg}`),
       });
 
-      console.log(`\n✔ Captured ${target} at ${results.length} viewport(s)`);
+      console.log(`\n✔ Captured ${target} (${results.length} state/viewport file(s))`);
       for (const r of results) {
-        console.log(`  ${r.capture.viewport.width}px  tree: ${r.treePath}`);
+        const tag = r.state ? ` [${r.state}]` : '';
+        console.log(`  ${r.capture.viewport.width}px${tag}  tree: ${r.treePath}`);
         console.log(`         shot: ${r.screenshotPath}`);
       }
     } catch (err) {

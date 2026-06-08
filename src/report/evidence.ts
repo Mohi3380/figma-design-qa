@@ -92,10 +92,13 @@ export async function applyPixelDiff(
     return rel;
   };
 
-  // 1. Evaluate the visual pointers Layer A deferred.
+  // 1. Evaluate the region-diff pointers Layer A deferred: `visual` for any
+  //    element, `asset` for icons/images. Same pixel comparison; the asset
+  //    label tells the reader it's an icon/image specifically.
   let visualChecked = 0;
   for (const evaluation of report.evaluations) {
-    if (evaluation.pointer !== 'visual' || evaluation.result !== 'skipped') continue;
+    const isRegion = evaluation.pointer === 'visual' || evaluation.pointer === 'asset';
+    if (!isRegion || evaluation.result !== 'skipped') continue;
     const design = designRegion(evaluation.figmaNodeId);
     const live = liveRegion(evaluation.selector ?? '');
     if (!design || !live) {
@@ -114,10 +117,11 @@ export async function applyPixelDiff(
 
     if (evaluation.result === 'fail') {
       const slug = fileSlug(evaluation.figmaNodeId ?? evaluation.elementName);
+      const noun = evaluation.pointer === 'asset' ? 'asset' : 'region';
       report.issues.push({
-        id: uniqueIssueId(`${fileSlug(evaluation.elementName)}-visual`, report.issues),
+        id: uniqueIssueId(`${fileSlug(evaluation.elementName)}-${evaluation.pointer}`, report.issues),
         elementName: evaluation.elementName,
-        pointer: 'visual',
+        pointer: evaluation.pointer,
         severity: visualSeverity(result.mismatchPct, options.visualMismatchPct),
         expected: evaluation.expected,
         actual: evaluation.actual,
@@ -125,7 +129,7 @@ export async function applyPixelDiff(
         viewport: report.live.viewport.width,
         figmaNodeId: evaluation.figmaNodeId,
         selector: evaluation.selector,
-        explanation: `"${evaluation.elementName}" renders ${result.mismatchPct}% different pixels than the design region.`,
+        explanation: `"${evaluation.elementName}" renders ${result.mismatchPct}% different pixels than the design ${noun}.`,
         confidence: pairConfidence(report, evaluation.figmaNodeId),
         evidence: {
           design: save(`${slug}-design`, result.design),

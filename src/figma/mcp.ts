@@ -146,6 +146,10 @@ export function mcpToNormalized(node: RawMcpNode): NormalizedNode {
     // Best-effort: Figma often names a text layer with its content, so expose
     // the layer name as text so the matcher has a content signal to try.
     if (type === 'TEXT' && raw.name) normalized.text = raw.name;
+    // Vector-ish nodes are icons (MCP metadata carries no image fills).
+    if (type === 'VECTOR' || type === 'BOOLEAN_OPERATION' || type === 'LINE') {
+      normalized.asset = { kind: 'icon' };
+    }
     return normalized;
   };
 

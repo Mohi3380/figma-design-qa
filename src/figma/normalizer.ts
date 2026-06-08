@@ -54,7 +54,20 @@ export function normalizeTree(raw: RawFigmaNode): NormalizedNode {
   const variant = normalizeVariant(raw);
   if (variant) node.variant = variant;
 
+  const asset = normalizeAsset(raw, node);
+  if (asset) node.asset = asset;
+
   return node;
+}
+
+/** Classify a node as an icon or image asset (spec §6.4 `asset` pointer):
+ * vector/boolean shapes are icons; any node with an IMAGE fill is an image. */
+function normalizeAsset(raw: RawFigmaNode, node: NormalizedNode): NormalizedNode['asset'] {
+  if (node.fills.some((p) => p.type === 'IMAGE')) return { kind: 'image' };
+  if (raw.type === 'VECTOR' || raw.type === 'BOOLEAN_OPERATION' || raw.type === 'STAR' || raw.type === 'LINE') {
+    return { kind: 'icon' };
+  }
+  return undefined;
 }
 
 function normalizeBBox(value: unknown): BBox | null {

@@ -78,6 +78,16 @@ export interface NormalizedNode {
   /** Source attributes the matcher cares about (Phase 2 DOM nodes only):
    * the explicit mapping attribute (`data-figma-id`), role, aria-label, id. */
   attributes?: Record<string, string>;
+  /** Icon/image classification, when the node is a graphic asset. Used by the
+   * `asset` pointer for icon/image matching and the pixelation check.
+   * `naturalWidth`/`naturalHeight` are the source resolution of a live <img>
+   * (absent for design nodes / vectors) — displayed size much larger than the
+   * source means the image is upscaled and looks pixelated. */
+  asset?: {
+    kind: 'icon' | 'image';
+    naturalWidth?: number;
+    naturalHeight?: number;
+  };
   children: NormalizedNode[];
 }
 

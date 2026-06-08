@@ -27,6 +27,7 @@
  * "missing element") / in-DOM-not-in-design (informational).
  */
 import type { BBox, MatchedPair, NormalizedNode } from '../types.js';
+import { textSimilarity } from './similarity.js';
 
 export interface MatchOptions {
   /** DOM attribute that explicitly maps to a Figma node id. */
@@ -103,6 +104,25 @@ export function matchTrees(
         if (nearest) pair(d, nearest, 'text', 0.75);
       }
     }
+  }
+
+  // Pass 2b — fuzzy text: reworded copy ("Sign In" vs "Login") won't match
+  // exactly, but a high similarity + proximity still points at the same
+  // element. Pairing it here means the `text` pointer reports "copy differs"
+  // instead of a false "missing element". Lower confidence than exact text.
+  const dText = free(design, matchedDesign).filter((f) => f.node.type === 'TEXT' && f.node.text);
+  const lText = free(live, matchedLive).filter((f) => f.node.type === 'TEXT' && f.node.text);
+  const fuzzy: Array<{ d: FlatNode; l: FlatNode; sim: number }> = [];
+  for (const d of dText) {
+    for (const l of lText) {
+      const sim = textSimilarity(d.node.text!, l.node.text!);
+      if (sim >= 0.6) fuzzy.push({ d, l, sim });
+    }
+  }
+  fuzzy.sort((a, b) => b.sim - a.sim);
+  for (const { d, l, sim } of fuzzy) {
+    if (matchedDesign.has(d.node) || matchedLive.has(l.node)) continue;
+    pair(d, l, 'text', round2(0.6 + 0.2 * sim)); // 0.72–0.8
   }
 
   // Pass 3 — anchor propagation: matched children pull parents together.

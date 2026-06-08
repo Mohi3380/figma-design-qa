@@ -167,6 +167,32 @@ describe('normalizeDomTree', () => {
     expect(hiddenP.children[0].bbox).toEqual(hiddenP.bbox); // fixture has no textBBox here
   });
 
+  it('classifies graphic assets (img → image with natural size, svg → icon)', () => {
+    const img = normalizeDomTree({
+      tag: 'img',
+      selector: 'body > img',
+      attributes: {},
+      bbox: { x: 0, y: 0, width: 400, height: 300 },
+      styles: { visibility: 'visible', opacity: '1' },
+      text: '',
+      asset: { kind: 'image', naturalWidth: 200, naturalHeight: 150 },
+      children: [],
+    });
+    expect(img.asset).toEqual({ kind: 'image', naturalWidth: 200, naturalHeight: 150 });
+
+    const icon = normalizeDomTree({
+      tag: 'svg',
+      selector: 'body > svg',
+      attributes: {},
+      bbox: { x: 0, y: 0, width: 24, height: 24 },
+      styles: { visibility: 'visible', opacity: '1' },
+      text: '',
+      asset: { kind: 'icon', naturalWidth: 0, naturalHeight: 0 },
+      children: [],
+    });
+    expect(icon.asset).toEqual({ kind: 'icon' }); // zero natural sizes dropped
+  });
+
   it('names nodes from aria-label > id > text > tag', () => {
     expect(button.name).toBe('Sign up'); // aria-label
     expect(card.name).toBe('div#signup-card'); // id

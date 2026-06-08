@@ -73,6 +73,25 @@ describe('matchTrees', () => {
     expect(result.pairs.every((p) => p.method === 'text' && p.confidence === 0.75)).toBe(true);
   });
 
+  it('pass 2b: fuzzy text pairs reworded copy (not a false "missing")', () => {
+    const design = n({
+      id: 'root',
+      bbox: { x: 0, y: 0, width: 1000, height: 800 },
+      children: [n({ id: 'd', type: 'TEXT', text: 'Forgot Password?', bbox: { x: 10, y: 10, width: 120, height: 18 } })],
+    });
+    const live = n({
+      id: 'body',
+      bbox: { x: 0, y: 0, width: 1000, height: 800 },
+      children: [n({ id: 'body > a::text', type: 'TEXT', text: 'Forgot password', bbox: { x: 12, y: 11, width: 118, height: 18 } })],
+    });
+
+    const result = matchTrees(design, live, OPTS);
+    expect(result.pairs).toHaveLength(1);
+    expect(result.pairs[0].method).toBe('text');
+    expect(result.pairs[0].confidence).toBeLessThan(0.9); // fuzzy, below exact-text 0.9
+    expect(result.designOnly).toHaveLength(0); // not reported missing
+  });
+
   it('pass 3: a matched text pulls its parents together (anchor)', () => {
     const designText = n({ id: '2:2', type: 'TEXT', text: 'Place order', bbox: { x: 20, y: 10, width: 80, height: 20 } });
     const design = n({

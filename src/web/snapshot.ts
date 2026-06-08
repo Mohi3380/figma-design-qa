@@ -38,6 +38,10 @@ export interface RawDomNode {
    * coordinates). Figma TEXT bboxes hug the glyphs; the element box doesn't —
    * without this, every TEXT position/size comparison is a false positive. */
   textBBox?: { x: number; y: number; width: number; height: number } | null;
+  /** Graphic-asset info: <img>/<svg>/<picture> or an element with a
+   * background-image. naturalWidth/Height are the source resolution of an
+   * <img> (for the pixelation check); 0 when not applicable. */
+  asset?: { kind: 'icon' | 'image'; naturalWidth: number; naturalHeight: number } | null;
   children: RawDomNode[];
 }
 
@@ -147,6 +151,24 @@ export function snapshotDom(options: SnapshotOptions): RawDomNode | null {
     };
   }
 
+  /** Classify a graphic asset (icon vs image) and capture an <img>'s source
+   * resolution for the pixelation check. Returns null for non-asset elements. */
+  function assetInfo(el: Element, computed: CSSStyleDeclaration): RawDomNode['asset'] {
+    const tag = el.tagName;
+    if (tag === 'IMG') {
+      const img = el as HTMLImageElement;
+      const rect = el.getBoundingClientRect();
+      const kind = Math.max(rect.width, rect.height) <= 64 ? 'icon' : 'image';
+      return { kind, naturalWidth: img.naturalWidth || 0, naturalHeight: img.naturalHeight || 0 };
+    }
+    if (tag === 'svg') return { kind: 'icon', naturalWidth: 0, naturalHeight: 0 };
+    if (tag === 'PICTURE') return { kind: 'image', naturalWidth: 0, naturalHeight: 0 };
+    if ((computed.backgroundImage || '').includes('url(')) {
+      return { kind: 'image', naturalWidth: 0, naturalHeight: 0 };
+    }
+    return null;
+  }
+
   function walk(el: Element): RawDomNode | null {
     if (SKIP_TAGS.has(el.tagName)) return null;
     const computed = getComputedStyle(el);
@@ -165,14 +187,19 @@ export function snapshotDom(options: SnapshotOptions): RawDomNode | null {
       if (value !== null) attributes[name] = value;
     }
 
+    // Don't descend into an <svg>'s internals — the icon is one unit, and its
+    // <path>/<g> children are noise to the comparison.
     const children: RawDomNode[] = [];
-    for (const child of Array.from(el.children)) {
-      const node = walk(child);
-      if (node) children.push(node);
+    if (el.tagName !== 'svg') {
+      for (const child of Array.from(el.children)) {
+        const node = walk(child);
+        if (node) children.push(node);
+      }
     }
 
     const text = directText(el);
     return {
+      asset: assetInfo(el, computed),
       tag: el.tagName.toLowerCase(),
       selector: selectorFor(el),
       attributes,

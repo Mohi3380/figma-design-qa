@@ -176,8 +176,17 @@ function gradeSeverity(
   switch (true) {
     case e.pointer === 'existence':
       return 'critical';
-    case e.pointer === 'text':
+    case e.pointer === 'text': {
+      // Fuzzy: `delta` is the similarity (0..1). Reworded-but-close copy is a
+      // medium drift; genuinely different copy is high (critical on a CTA).
+      const similarity = e.delta ?? 0;
+      if (similarity >= 0.6) return 'medium';
       return pair && isInteractive(pair.live) ? 'critical' : 'high';
+    }
+    case e.pointer === 'asset':
+      return 'high'; // icon/image missing or not a graphic asset
+    case e.pointer === 'asset.resolution':
+      return 'medium'; // upscaled / pixelated image
     case e.pointer.startsWith('color'):
       return 'high';
     case e.pointer === 'typography.fontFamily' || e.pointer === 'typography.fontSize' || e.pointer === 'typography':
@@ -211,7 +220,11 @@ function explain(e: PointerEvaluation, pair: MatchedPair | undefined): string {
     case e.pointer === 'existence':
       return `${name} is in the design but no matching element was found in the DOM.`;
     case e.pointer === 'text':
-      return `${name} shows different copy than the design.`;
+      return `${name} copy differs from the design — expected ${e.expected}, got ${e.actual} (${e.tolerance}).`;
+    case e.pointer === 'asset':
+      return `${name}: ${e.actual} — the design expects ${e.expected}.`;
+    case e.pointer === 'asset.resolution':
+      return `${name} image is ${e.actual} — it will look pixelated.`;
     case e.pointer === 'color.text':
       return `${name} text color drifts from the design (expected ${e.expected}, got ${e.actual}).`;
     case e.pointer === 'color.background':
