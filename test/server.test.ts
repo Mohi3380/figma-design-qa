@@ -42,7 +42,7 @@ describe('web-ui server', () => {
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toContain('text/html');
     const body = await res.text();
-    expect(body).toContain('<title>Design QA</title>');
+    expect(body).toContain('<title>KODERLABS Design QA</title>');
     expect(body).toContain('Run QA');
   });
 

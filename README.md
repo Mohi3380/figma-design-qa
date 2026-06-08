@@ -20,6 +20,16 @@ npm install
 npx playwright install chromium   # browser for `capture`
 ```
 
+### Install the `design-qa` command locally
+
+```bash
+npm run build      # compile to dist/
+npm link           # makes `design-qa` available globally
+design-qa serve    # then open http://127.0.0.1:4100
+```
+
+(`npm unlink -g design-qa` removes it.) Without installing, every command also works through `npm run dev -- <command>`.
+
 Create a Figma personal access token (Figma → Settings → Security → Personal access tokens) and expose it:
 
 ```powershell
@@ -91,10 +101,10 @@ npm run dev -- run --figma "https://figma.com/design/AbC123/Checkout?node-id=12-
 ### Or use the web UI
 
 ```bash
-npm run dev -- serve            # http://127.0.0.1:4100
+design-qa serve                 # http://127.0.0.1:4100  (or: npm run dev -- serve)
 ```
 
-Opens a local page: paste the Figma URL + site URL, click **Run QA**, watch progress stream in, and view the report inline. It wraps the same pipeline as `run` (one shared code path in `src/pipeline.ts`) — so the CLI and the UI never diverge. Binds to localhost only, since it runs with your local `FIGMA_TOKEN` / `ANTHROPIC_API_KEY`.
+Opens the **KODERLABS Design QA** page: paste the Figma URL + App URL, click **Run QA**, watch progress stream in, and view the report inline. It wraps the same pipeline as `run` (one shared code path in `src/pipeline.ts`) — so the CLI and the UI never diverge. Binds to localhost only, since it runs with your local `FIGMA_TOKEN` / `ANTHROPIC_API_KEY`.
 
 ## Module map (why each exists)
 

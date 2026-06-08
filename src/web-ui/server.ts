@@ -122,46 +122,62 @@ const APP_HTML = `<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Design QA</title>
+<title>KODERLABS Design QA</title>
 <style>
-  :root { color-scheme: light; }
+  :root {
+    color-scheme: light;
+    --blue: #1763E6;
+    --blue-dark: #0B3FA8;
+    --blue-deep: #06256B;
+    --ink: #0d1b3e;
+  }
   * { box-sizing: border-box; }
-  body { margin: 0; font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; color: #1a1a2e; background: #f5f6fa; }
-  header { background: #fff; border-bottom: 1px solid #e6e8ee; padding: 16px 24px; }
-  header h1 { margin: 0; font-size: 18px; }
-  header p { margin: 2px 0 0; color: #667; font-size: 13px; }
+  body { margin: 0; font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--ink); background: #eef3fc; }
+  header { background: linear-gradient(135deg, var(--blue-deep), var(--blue)); color: #fff; padding: 22px 28px; box-shadow: 0 2px 10px rgba(6,37,107,.25); }
+  header .brand { display: flex; align-items: center; gap: 12px; }
+  header .logo { width: 34px; height: 34px; border-radius: 8px; background: #fff; color: var(--blue-deep); font-weight: 800; font-size: 15px; letter-spacing: -.5px; display: flex; align-items: center; justify-content: center; }
+  header h1 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: .2px; }
+  header p { margin: 4px 0 0; color: #cfe0ff; font-size: 13px; }
   main { max-width: 1100px; margin: 0 auto; padding: 24px; }
-  .card { background: #fff; border: 1px solid #e6e8ee; border-radius: 10px; padding: 18px 20px; margin-bottom: 18px; }
-  label { display: block; font-weight: 600; font-size: 13px; margin: 10px 0 4px; }
-  input[type=text] { width: 100%; padding: 9px 11px; border: 1px solid #cfd4e0; border-radius: 7px; font: inherit; }
-  input[type=text]:focus { outline: 2px solid #2D6CDF; border-color: #2D6CDF; }
-  .row { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
-  .row label { margin: 0; font-weight: 400; display: flex; gap: 6px; align-items: center; }
-  .actions { margin-top: 16px; display: flex; gap: 12px; align-items: center; }
-  button { background: #2D6CDF; color: #fff; border: none; border-radius: 8px; padding: 10px 22px; font: inherit; font-weight: 600; cursor: pointer; }
-  button:disabled { opacity: .5; cursor: default; }
-  .hint { color: #889; font-size: 12px; }
-  #progress { font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; background: #0f1117; color: #cdd3e0; border-radius: 8px; padding: 12px 14px; max-height: 260px; overflow: auto; white-space: pre-wrap; display: none; }
-  #progress .warn { color: #f9c66b; }
-  #progress .ok { color: #6bd089; }
+  .card { background: #fff; border: 1px solid #d9e3f5; border-radius: 12px; padding: 20px 22px; margin-bottom: 18px; box-shadow: 0 1px 3px rgba(11,63,168,.06); }
+  label { display: block; font-weight: 600; font-size: 13px; color: var(--blue-dark); margin: 12px 0 4px; }
+  label:first-child { margin-top: 0; }
+  input[type=text] { width: 100%; padding: 10px 12px; border: 1px solid #c2d2ee; border-radius: 8px; font: inherit; background: #f8faff; }
+  input[type=text]:focus { outline: 2px solid var(--blue); border-color: var(--blue); background: #fff; }
+  .row { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; margin-top: 14px; }
+  .row label { margin: 0; font-weight: 400; color: var(--ink); display: flex; gap: 6px; align-items: center; }
+  input[type=checkbox] { accent-color: var(--blue); width: 16px; height: 16px; }
+  .actions { margin-top: 18px; display: flex; gap: 12px; align-items: center; }
+  button { background: var(--blue); color: #fff; border: none; border-radius: 8px; padding: 11px 26px; font: inherit; font-weight: 700; cursor: pointer; box-shadow: 0 2px 6px rgba(23,99,230,.35); transition: background .15s; }
+  button:hover:not(:disabled) { background: var(--blue-dark); }
+  button:disabled { opacity: .5; cursor: default; box-shadow: none; }
+  .hint { color: #6b7a99; font-size: 12px; }
+  #progress { font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; background: #06256B; color: #cfe0ff; border-radius: 10px; padding: 12px 14px; max-height: 260px; overflow: auto; white-space: pre-wrap; display: none; }
+  #progress .warn { color: #ffd27a; }
+  #progress .ok { color: #7fe3a4; }
   #summary { display: none; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
   .chip { color: #fff; border-radius: 999px; padding: 3px 13px; font-size: 12px; font-weight: 600; }
-  .stat { background: #f0f2f7; border-radius: 8px; padding: 6px 12px; font-size: 13px; }
-  iframe { width: 100%; height: 720px; border: 1px solid #e6e8ee; border-radius: 10px; background: #fff; display: none; margin-top: 8px; }
+  .stat { background: #e7eefc; color: var(--blue-dark); border-radius: 8px; padding: 6px 12px; font-size: 13px; }
+  iframe { width: 100%; height: 720px; border: 1px solid #d9e3f5; border-radius: 12px; background: #fff; display: none; margin-top: 8px; }
   .err { display: none; background: #FDECEA; border: 1px solid #D32F2F; color: #b71c1c; border-radius: 8px; padding: 10px 14px; margin-top: 12px; }
-  a.report-link { display: none; font-size: 13px; }
+  a.report-link { display: none; font-size: 13px; color: var(--blue); font-weight: 600; }
 </style>
 </head>
 <body>
 <header>
-  <h1>Design QA</h1>
-  <p>Compare a Figma frame against a live page. Two URLs in, a report out.</p>
+  <div class="brand">
+    <span class="logo">KL</span>
+    <div>
+      <h1>KODERLABS Design QA</h1>
+      <p>Compare a Figma design against your live app. Two URLs in, a report out.</p>
+    </div>
+  </div>
 </header>
 <main>
   <div class="card">
-    <label for="figma">Figma frame URL</label>
+    <label for="figma">Figma URL</label>
     <input type="text" id="figma" placeholder="https://figma.com/design/AbC123/Checkout?node-id=12-345" autocomplete="off">
-    <label for="target">Site URL</label>
+    <label for="target">App URL</label>
     <input type="text" id="target" placeholder="http://localhost:3000/checkout" autocomplete="off">
     <div class="row">
       <label><input type="checkbox" id="vision" checked> Vision adjudication (Layer C)</label>
