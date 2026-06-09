@@ -42,8 +42,10 @@ describe('web-ui server', () => {
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toContain('text/html');
     const body = await res.text();
-    expect(body).toContain('<title>KODERLABS Design QA</title>');
+    expect(body).toContain('<title>KODERLABS Design QA');
     expect(body).toContain('Run QA');
+    expect(body).toContain('rel="icon"'); // favicon present
+    expect(body).toContain('name="description"'); // SEO meta present
   });
 
   it('404s unknown routes', async () => {
