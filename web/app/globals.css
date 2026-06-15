@@ -402,3 +402,20 @@
     .app-user-name { display: none; }
     .app-content { padding: 20px 16px 48px; }
   }
+
+  /* ---- Dashboard analytics ---- */
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin: 6px 0 24px; }
+  .kpi-card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; box-shadow: var(--shadow-sm); }
+  .kpi-card .k-label { color: var(--muted); font-size: 12.5px; font-weight: 600; }
+  .kpi-card .k-value { font-size: 28px; font-weight: 800; margin-top: 8px; color: var(--ink); line-height: 1.1; }
+  .kpi-card .k-value.k-sm { font-size: 17px; text-transform: capitalize; }
+  .kpi-card .k-sub { color: var(--muted); font-size: 12px; margin-top: 4px; }
+  .charts-grid { display: grid; grid-template-columns: 1.6fr 1fr; gap: 16px; margin-bottom: 28px; }
+  .chart-card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; box-shadow: var(--shadow-sm); }
+  .chart-card h3 { margin: 0 0 4px; font-size: 15px; color: var(--ink); }
+  .chart-card .c-sub { color: var(--muted); font-size: 12.5px; margin: 0 0 12px; }
+  .chart-empty { display: grid; place-items: center; height: 240px; color: var(--muted); font-size: 13px; }
+  .kpi-skel { height: 98px; border-radius: 14px; background: var(--surface-2); border: 1px solid var(--line); animation: kpipulse 1.2s ease-in-out infinite; }
+  @keyframes kpipulse { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
+  @media (max-width: 980px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } .charts-grid { grid-template-columns: 1fr; } }
+  @media (max-width: 520px) { .kpi-grid { grid-template-columns: 1fr; } }
