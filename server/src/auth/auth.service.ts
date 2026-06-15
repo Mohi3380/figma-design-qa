@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -55,8 +56,10 @@ export class AuthService {
 
   async validateLogin(email: string, password: string): Promise<User> {
     const user = await this.users.findByEmail(email);
-    if (!user || !user.passwordHash) {
-      throw new UnauthorizedException('Invalid email or password.');
+    if (!user) throw new UnauthorizedException('Invalid email or password.');
+    if (!user.passwordHash) {
+      // Account was created via Google and has no password set.
+      throw new UnauthorizedException('This account uses Google sign-in — use "Continue with Google".');
     }
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) throw new UnauthorizedException('Invalid email or password.');
@@ -141,7 +144,8 @@ export class AuthService {
 
   async forgotPassword(email: string): Promise<void> {
     const user = await this.users.findByEmail(email);
-    if (!user) return; // do not reveal whether the account exists
+    // Per product requirement: confirm the email exists and tell the user.
+    if (!user) throw new NotFoundException('No account found with that email address.');
     const raw = randomToken();
     await this.prisma.verificationToken.create({
       data: {
@@ -152,6 +156,13 @@ export class AuthService {
       },
     });
     await this.mail.sendPasswordResetEmail(user.email, `${this.appBaseUrl}/reset-password?token=${raw}`);
+  }
+
+  async resendVerification(email: string): Promise<void> {
+    const user = await this.users.findByEmail(email);
+    if (!user) throw new NotFoundException('No account found with that email address.');
+    if (user.emailVerified) throw new BadRequestException('This email is already verified.');
+    await this.sendVerificationEmail(user);
   }
 
   async resetPassword(rawToken: string, newPassword: string): Promise<void> {

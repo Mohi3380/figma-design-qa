@@ -29,8 +29,27 @@ export const metadata: Metadata = {
     siteName: 'KODERLABS Design QA',
     title: 'KODERLABS Design QA',
     description: 'Compare a Figma design against your live app and get a severity-graded report with evidence.',
+    images: [{ url: '/hero.jpg', width: 1200, height: 800, alt: 'KODERLABS Design QA' }],
   },
-  twitter: { card: 'summary_large_image' },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'KODERLABS Design QA',
+    description: 'Compare a Figma design against your live app and get a severity-graded report with evidence.',
+    images: ['/hero.jpg'],
+  },
+  robots: { index: true, follow: true },
+};
+
+const JSON_LD = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareApplication',
+  name: 'KODERLABS Design QA',
+  applicationCategory: 'DeveloperApplication',
+  operatingSystem: 'Web',
+  description:
+    'Compare a Figma design against your live app and report every visual mismatch — color, typography, spacing, icons, text and layout — severity-graded with evidence.',
+  offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+  publisher: { '@type': 'Organization', name: 'KODERLABS', url: 'https://koderlabs.com' },
 };
 
 export const viewport: Viewport = {
@@ -45,6 +64,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body className={inter.className}>
         <Script id="theme-init" strategy="beforeInteractive" dangerouslySetInnerHTML={{ __html: THEME_INIT }} />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }} />
         <AuthProvider>
           <Nav />
           {children}
