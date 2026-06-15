@@ -1,26 +1,18 @@
 // KODERLABS Design QA — data model.
-// Provider is Postgres (Neon for local dev). Switch `provider` to "sqlite" only
-// if you opt out of Postgres; enums would then need to become strings.
+// Local dev uses SQLite (a single file, zero setup). Status/type fields are
+// plain strings and JSON is stored as text, so this same schema also works on
+// Postgres later — switch `provider` to "postgresql" and set DATABASE_URL.
+//
+// Status values (QAJob.status): PENDING | RUNNING | COMPLETED | FAILED
+// Token types (VerificationToken.type): EMAIL_VERIFICATION | PASSWORD_RESET
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
-}
-
-enum QaStatus {
-  PENDING
-  RUNNING
-  COMPLETED
-  FAILED
-}
-
-enum TokenType {
-  EMAIL_VERIFICATION
-  PASSWORD_RESET
 }
 
 model User {
@@ -34,10 +26,10 @@ model User {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  refreshTokens     RefreshToken[]
+  refreshTokens      RefreshToken[]
   verificationTokens VerificationToken[]
-  figmaConnection   FigmaConnection?
-  qaJobs            QAJob[]
+  figmaConnection    FigmaConnection?
+  qaJobs             QAJob[]
 
   @@index([email])
 }
@@ -62,7 +54,7 @@ model VerificationToken {
   id        String    @id @default(cuid())
   userId    String
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type      TokenType
+  type      String // EMAIL_VERIFICATION | PASSWORD_RESET
   tokenHash String    @unique
   expiresAt DateTime
   usedAt    DateTime?
@@ -73,15 +65,15 @@ model VerificationToken {
 
 // A user's connected Figma account (OAuth). Tokens stored encrypted at rest.
 model FigmaConnection {
-  id                String    @id @default(cuid())
-  userId            String    @unique
-  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  accessTokenEnc    String
-  refreshTokenEnc   String?
-  expiresAt         DateTime?
-  figmaUserId       String?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  id              String    @id @default(cuid())
+  userId          String    @unique
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessTokenEnc  String
+  refreshTokenEnc String?
+  expiresAt       DateTime?
+  figmaUserId     String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 }
 
 model QAJob {
@@ -93,7 +85,7 @@ model QAJob {
   vision     Boolean   @default(true)
   pdf        Boolean   @default(true)
   viewport   Int? // null = auto
-  status     QaStatus  @default(PENDING)
+  status     String    @default("PENDING") // PENDING | RUNNING | COMPLETED | FAILED
   error      String?
   createdAt  DateTime  @default(now())
   startedAt  DateTime?
@@ -114,9 +106,9 @@ model QAReport {
   passed          Int      @default(0)
   failed          Int      @default(0)
   matched         Int      @default(0)
-  // Severity counts + the full report summary as JSON.
-  issuesBySeverity Json?
-  summary          Json?
+  // JSON stored as text (portable across SQLite/Postgres).
+  issuesBySeverity String?
+  summary          String?
   htmlPath         String?
   jsonPath         String?
   pdfPath          String?
