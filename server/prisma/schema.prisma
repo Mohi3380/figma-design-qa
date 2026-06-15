@@ -1,0 +1,124 @@
+// KODERLABS Design QA — data model.
+// Provider is Postgres (Neon for local dev). Switch `provider` to "sqlite" only
+// if you opt out of Postgres; enums would then need to become strings.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum QaStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum TokenType {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String?
+  passwordHash  String? // null for Google-only accounts
+  googleId      String?  @unique
+  emailVerified Boolean  @default(false)
+  avatarUrl     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  refreshTokens     RefreshToken[]
+  verificationTokens VerificationToken[]
+  figmaConnection   FigmaConnection?
+  qaJobs            QAJob[]
+
+  @@index([email])
+}
+
+// Hashed refresh tokens for JWT rotation + revocation.
+model RefreshToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  userAgent String?
+  ip        String?
+
+  @@index([userId])
+}
+
+// Email verification + password reset tokens (single-use, hashed).
+model VerificationToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      TokenType
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, type])
+}
+
+// A user's connected Figma account (OAuth). Tokens stored encrypted at rest.
+model FigmaConnection {
+  id                String    @id @default(cuid())
+  userId            String    @unique
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessTokenEnc    String
+  refreshTokenEnc   String?
+  expiresAt         DateTime?
+  figmaUserId       String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+model QAJob {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  figmaUrl   String
+  targetUrl  String
+  vision     Boolean   @default(true)
+  pdf        Boolean   @default(true)
+  viewport   Int? // null = auto
+  status     QaStatus  @default(PENDING)
+  error      String?
+  createdAt  DateTime  @default(now())
+  startedAt  DateTime?
+  finishedAt DateTime?
+
+  report QAReport?
+
+  @@index([userId, createdAt])
+}
+
+model QAReport {
+  id              String   @id @default(cuid())
+  jobId           String   @unique
+  job             QAJob    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  frameName       String?
+  viewport        Int?
+  pointersChecked Int      @default(0)
+  passed          Int      @default(0)
+  failed          Int      @default(0)
+  matched         Int      @default(0)
+  // Severity counts + the full report summary as JSON.
+  issuesBySeverity Json?
+  summary          Json?
+  htmlPath         String?
+  jsonPath         String?
+  pdfPath          String?
+  createdAt        DateTime @default(now())
+}
