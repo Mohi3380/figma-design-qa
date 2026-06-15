@@ -7,15 +7,8 @@ const nextConfig = {
   // Repo root has its own lockfile; pin tracing to this app to avoid the
   // multi-lockfile warning and keep standalone output self-contained.
   outputFileTracingRoot: import.meta.dirname,
-  // The QA engine (Playwright + Figma + Anthropic) runs as a separate Node
-  // service — the existing pipeline server. Next proxies the streaming run
-  // and the rendered report to it instead of rebundling those heavy deps.
-  async rewrites() {
-    const backend = (process.env.QA_BACKEND_URL || 'http://127.0.0.1:4100').replace(/\/+$/, '');
-    // /api/run is a route handler (it injects the logged-in user's Figma token);
-    // /report is a simple proxy to the backend's rendered report.
-    return [{ source: '/report', destination: `${backend}/report` }];
-  },
+  // Auth + QA + reports are all served by the NestJS backend (NEXT_PUBLIC_API_URL),
+  // called directly with credentials — no Next-side proxy needed.
 };
 
 export default nextConfig;

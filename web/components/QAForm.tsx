@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import { API_BASE } from '@/lib/api';
 
 const SEV: Record<string, string> = {
   critical: '#DC2626',
@@ -28,6 +29,7 @@ interface Summary {
   issuesBySeverity: Record<string, number>;
 }
 interface DoneData {
+  jobId: string;
   summary: Summary;
   matching: { matched: number };
   viewport: number;
@@ -35,7 +37,7 @@ interface DoneData {
   hasPdf: boolean;
 }
 
-export default function QAForm() {
+export default function QAForm({ onComplete }: { onComplete?: () => void }) {
   const [figma, setFigma] = useState('');
   const [target, setTarget] = useState('');
   const [vision, setVision] = useState(true);
@@ -81,7 +83,7 @@ export default function QAForm() {
     });
     if (viewport.trim()) params.set('viewport', viewport.trim());
 
-    const es = new EventSource('/api/run?' + params.toString());
+    const es = new EventSource(`${API_BASE}/qa/run?` + params.toString(), { withCredentials: true });
     esRef.current = es;
     es.addEventListener('log', (ev) => {
       const msg = JSON.parse((ev as MessageEvent).data).message as string;
@@ -94,15 +96,17 @@ export default function QAForm() {
       else setErr('Connection lost before the QA finished.');
       es.close();
       setRunning(false);
+      onComplete?.();
     });
     es.addEventListener('done', (ev) => {
       const d = JSON.parse((ev as MessageEvent).data) as DoneData;
       setStep(STEPS.length);
       setLines((l) => [...l, { text: 'done', ok: true }]);
       setDone(d);
-      setReportSrc('/report?t=' + Date.now());
+      setReportSrc(`${API_BASE}/qa/jobs/${d.jobId}/report.html`);
       es.close();
       setRunning(false);
+      onComplete?.();
     });
   }
 
@@ -183,7 +187,7 @@ export default function QAForm() {
             <div className="browser-bar">
               <span className="dot3 r" /><span className="dot3 y" /><span className="dot3 g" />
               <span className="bar-title"><b>{done.frameName}</b> @ {done.viewport}px{done.hasPdf ? ' · PDF ready' : ''}</span>
-              <a href="/report" target="_blank" rel="noopener noreferrer">Open in new tab ↗</a>
+              <a href={reportSrc} target="_blank" rel="noopener noreferrer">Open in new tab ↗</a>
             </div>
             <iframe src={reportSrc} title="QA report" />
           </div>
