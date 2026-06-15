@@ -230,6 +230,10 @@
   .foot-contact a { color: var(--footer-fg); text-decoration: none; display: flex; align-items: center; gap: 11px; opacity: .9; transition: opacity .15s, color .15s; }
   .foot-contact a:hover { opacity: 1; color: #fff; }
   .foot-contact svg { width: 17px; height: 17px; color: var(--sky); flex: none; }
+  .foot-legal-right { display: flex; align-items: center; gap: 12px; margin-top: 18px; font-size: 13px; }
+  .foot-legal-right a { color: var(--footer-fg); opacity: .8; text-decoration: none; }
+  .foot-legal-right a:hover { opacity: 1; color: #fff; }
+  .foot-legal-right span { opacity: .45; }
   @media (max-width: 860px) {
     .foot-main { grid-template-columns: 1fr; gap: 32px; padding: 40px 24px 24px; }
     .foot-right { border-left: 0; padding-left: 0; border-top: 1px solid rgba(255,255,255,.13); padding-top: 28px; }
