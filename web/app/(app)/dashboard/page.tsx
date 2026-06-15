@@ -1,9 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import RequireAuth from '@/components/RequireAuth';
-import QAForm from '@/components/QAForm';
-import FigmaConnect from '@/components/FigmaConnect';
+import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { API_BASE, api } from '@/lib/api';
 
@@ -43,7 +41,7 @@ function RunRow({ run }: { run: Run }) {
   );
 }
 
-function DashboardInner() {
+export default function DashboardPage() {
   const { user } = useAuth();
   const [runs, setRuns] = useState<Run[] | null>(null);
 
@@ -60,37 +58,29 @@ function DashboardInner() {
   }, [load]);
 
   return (
-    <main className="dash">
-      <div className="wrap">
-        <div className="dash-head">
-          <h1>Welcome{user?.name ? `, ${user.name}` : ''}</h1>
-        </div>
-        <p className="dash-sub">Run a Design QA and review your past reports.</p>
-
-        <FigmaConnect />
-        <QAForm onComplete={load} />
-
-        <h2 className="title" style={{ textAlign: 'left', marginTop: 44 }}>Past runs</h2>
-        {runs === null ? (
-          <div className="empty-state">Loading…</div>
-        ) : runs.length === 0 ? (
-          <div className="empty-state">No runs yet — start your first QA above.</div>
-        ) : (
-          <div className="runs">
-            {runs.map((r) => (
-              <RunRow key={r.id} run={r} />
-            ))}
-          </div>
-        )}
+    <div className="app-page">
+      <div className="dash-head">
+        <h1>Welcome{user?.name ? `, ${user.name}` : ''}</h1>
+        <Link className="btn btn-primary" href="/start-qa">+ New QA</Link>
       </div>
-    </main>
-  );
-}
+      <p className="dash-sub">Your Design QA activity at a glance.</p>
 
-export default function DashboardPage() {
-  return (
-    <RequireAuth>
-      <DashboardInner />
-    </RequireAuth>
+      {/* Analytics (KPI cards + charts) arrive in the next phase. */}
+
+      <h2 className="title" style={{ textAlign: 'left', marginTop: 24 }}>Recent runs</h2>
+      {runs === null ? (
+        <div className="empty-state">Loading…</div>
+      ) : runs.length === 0 ? (
+        <div className="empty-state">
+          No runs yet — <Link href="/start-qa" style={{ color: 'var(--blue)', fontWeight: 600 }}>start your first QA</Link>.
+        </div>
+      ) : (
+        <div className="runs">
+          {runs.map((r) => (
+            <RunRow key={r.id} run={r} />
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
