@@ -1,12 +1,12 @@
 import { Module } from '@nestjs/common';
 import { QaService } from './qa.service';
 import { QaController } from './qa.controller';
-import { AuthModule } from '../auth/auth.module';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { FigmaModule } from '../figma/figma.module';
 
 @Module({
-  imports: [AuthModule, FigmaModule],
+  imports: [FigmaModule],
   controllers: [QaController],
-  providers: [QaService],
+  providers: [QaService, JwtAuthGuard],
 })
 export class QaModule {}

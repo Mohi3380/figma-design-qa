@@ -18,7 +18,7 @@ import { JwtAuthGuard, AuthUser } from './jwt-auth.guard';
 import { CurrentUser } from './current-user.decorator';
 import { GoogleOAuthGuard } from './google.strategy';
 import { setAuthCookies, clearAuthCookies } from './cookies';
-import { ForgotPasswordDto, LoginDto, ResetPasswordDto, SignupDto } from './dto/auth.dto';
+import { ChangePasswordDto, ForgotPasswordDto, LoginDto, ResetPasswordDto, SignupDto } from './dto/auth.dto';
 
 const tight = { default: { limit: 8, ttl: 60_000 } };
 
@@ -109,6 +109,26 @@ export class AuthController {
   @HttpCode(200)
   async verifyEmail(@Body('token') token: string) {
     await this.auth.verifyEmail(token);
+    return { ok: true };
+  }
+
+  @Post('change-password')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  async changePassword(
+    @CurrentUser() current: AuthUser,
+    @Body() dto: ChangePasswordDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    await this.auth.changePassword(current.id, dto.currentPassword, dto.newPassword);
+    // changePassword revoked all sessions; re-issue for the current one so the
+    // user stays logged in here.
+    const user = await this.users.findById(current.id);
+    if (user) {
+      const tokens = await this.auth.issueTokens(user, this.meta(req));
+      setAuthCookies(res, tokens, this.ttls());
+    }
     return { ok: true };
   }
 

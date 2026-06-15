@@ -31,6 +31,14 @@ export class UsersService {
     });
   }
 
+  updateName(id: string, name: string): Promise<User> {
+    return this.prisma.user.update({ where: { id }, data: { name } });
+  }
+
+  setAvatarUrl(id: string, avatarUrl: string): Promise<User> {
+    return this.prisma.user.update({ where: { id }, data: { avatarUrl } });
+  }
+
   /** Public-safe view (no password hash). */
   static toPublic(user: User) {
     return {
