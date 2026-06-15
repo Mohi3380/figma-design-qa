@@ -12,10 +12,9 @@ const nextConfig = {
   // and the rendered report to it instead of rebundling those heavy deps.
   async rewrites() {
     const backend = (process.env.QA_BACKEND_URL || 'http://127.0.0.1:4100').replace(/\/+$/, '');
-    return [
-      { source: '/api/run', destination: `${backend}/run` },
-      { source: '/report', destination: `${backend}/report` },
-    ];
+    // /api/run is a route handler (it injects the logged-in user's Figma token);
+    // /report is a simple proxy to the backend's rendered report.
+    return [{ source: '/report', destination: `${backend}/report` }];
   },
 };
 

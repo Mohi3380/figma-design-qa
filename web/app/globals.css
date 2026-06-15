@@ -314,3 +314,11 @@
   @media (max-width: 980px) { .team-grid { grid-template-columns: repeat(3, 1fr); } .team-values { grid-template-columns: 1fr; } }
   @media (max-width: 720px) { .team-grid { grid-template-columns: repeat(2, 1fr); } }
   @media (max-width: 440px) { .team-grid { grid-template-columns: 1fr; } }
+
+  /* ---- Figma connect banner ---- */
+  .figma-banner { max-width: 720px; margin: 28px auto 0; display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; padding: 13px 18px; font-size: 14px; color: var(--ink); }
+  .figma-banner .btn-primary { padding: 9px 16px; font-size: 13.5px; }
+  .figma-banner.connected { background: #e7f6ec; border-color: #bbe6c9; color: #15803d; font-weight: 600; }
+  :root[data-theme="dark"] .figma-banner.connected { background: rgba(21,128,61,.16); border-color: rgba(21,128,61,.42); color: #7ee2a8; }
+  .figma-banner .link { color: var(--muted); text-decoration: underline; font-size: 13px; }
+  .figma-banner .link:hover { color: var(--ink); }

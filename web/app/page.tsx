@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import QAForm from '@/components/QAForm';
+import FigmaConnect from '@/components/FigmaConnect';
 
 const STEPS = [
   { n: '1', h: 'Point it at your design + app', p: "Paste a Figma frame URL and your live (or localhost) app URL. That's the whole setup." },
@@ -86,6 +87,7 @@ export default function Home() {
           <div className="eyebrow">Run it</div>
           <h2 className="title">Start a QA</h2>
           <p className="sub">Paste the two URLs and go. Progress streams live; the report renders right here.</p>
+          <FigmaConnect />
           <QAForm />
         </div>
       </section>

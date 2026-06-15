@@ -13,7 +13,7 @@
  * Binds to 127.0.0.1 by default — it runs the pipeline with your local
  * FIGMA_TOKEN / ANTHROPIC_API_KEY, so it is not meant to face the network.
  */
-import { createServer, type ServerResponse } from 'node:http';
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { loadConfig } from '../config.js';
@@ -34,7 +34,7 @@ export function createApp(options: ServeOptions) {
     if (req.method === 'GET' && url.pathname === '/styles.css') return sendCss(res, STYLE);
     if (req.method === 'GET' && url.pathname === '/robots.txt') return sendText(res, ROBOTS_TXT);
     if (req.method === 'GET' && url.pathname === '/og-image.jpg') return sendOgImage(res);
-    if (req.method === 'GET' && url.pathname === '/run') return runViaSse(url, res, options);
+    if (req.method === 'GET' && url.pathname === '/run') return runViaSse(req, url, res, options);
     if (req.method === 'GET' && url.pathname === '/report') return sendReport(res, options.outDir);
     res.writeHead(404, { 'content-type': 'text/plain' });
     res.end('Not found');
@@ -87,7 +87,7 @@ async function sendReport(res: ServerResponse, outDir: string): Promise<void> {
 }
 
 /** Stream the pipeline as Server-Sent Events. */
-async function runViaSse(url: URL, res: ServerResponse, options: ServeOptions): Promise<void> {
+async function runViaSse(req: IncomingMessage, url: URL, res: ServerResponse, options: ServeOptions): Promise<void> {
   res.writeHead(200, {
     'content-type': 'text/event-stream',
     'cache-control': 'no-cache',
@@ -108,6 +108,12 @@ async function runViaSse(url: URL, res: ServerResponse, options: ServeOptions): 
   const pdf = url.searchParams.get('pdf') !== 'false';
   const viewport = url.searchParams.get('viewport');
 
+  // Per-user OAuth token (forwarded by the Next "Login with Figma" layer) takes
+  // precedence; otherwise fall back to a server-configured personal token.
+  const oauthToken = (req.headers['x-figma-access-token'] as string | undefined)?.trim();
+  const figmaToken = oauthToken || process.env.FIGMA_TOKEN;
+  const figmaTokenScheme = oauthToken ? 'oauth' : 'pat';
+
   try {
     const config = await loadConfig(options.configPath);
     const result = await runPipeline({
@@ -118,7 +124,8 @@ async function runViaSse(url: URL, res: ServerResponse, options: ServeOptions): 
       outDir: options.outDir,
       vision,
       pdf,
-      figmaToken: process.env.FIGMA_TOKEN,
+      figmaToken,
+      figmaTokenScheme,
       anthropicKey: process.env.ANTHROPIC_API_KEY,
       log: (message) => send('log', { message }),
     });

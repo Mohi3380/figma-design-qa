@@ -22,6 +22,12 @@ export class FigmaApiError extends Error {
 
 export interface FigmaClientOptions {
   token: string;
+  /**
+   * Which auth header to send:
+   *  - 'pat'   → X-Figma-Token (personal access token, the default)
+   *  - 'oauth' → Authorization: Bearer (a user's OAuth 2 access token)
+   */
+  scheme?: 'pat' | 'oauth';
   /** Injectable for tests. */
   fetchImpl?: typeof fetch;
 }
@@ -47,21 +53,29 @@ interface ImagesResponse {
 
 export class FigmaClient {
   private readonly token: string;
+  private readonly scheme: 'pat' | 'oauth';
   private readonly fetchImpl: typeof fetch;
 
   constructor(options: FigmaClientOptions) {
     if (!options.token) {
       throw new FigmaApiError(
-        'Missing Figma token. Set the FIGMA_TOKEN environment variable (Figma → Settings → Security → Personal access tokens).',
+        'Missing Figma token. Either sign in with Figma, or set the FIGMA_TOKEN environment variable (Figma → Settings → Security → Personal access tokens).',
       );
     }
     this.token = options.token;
+    this.scheme = options.scheme ?? 'pat';
     this.fetchImpl = options.fetchImpl ?? fetch;
+  }
+
+  private authHeaders(): Record<string, string> {
+    return this.scheme === 'oauth'
+      ? { Authorization: `Bearer ${this.token}` }
+      : { 'X-Figma-Token': this.token };
   }
 
   private async get<T>(path: string): Promise<T> {
     const res = await this.fetchImpl(`${API_BASE}${path}`, {
-      headers: { 'X-Figma-Token': this.token },
+      headers: this.authHeaders(),
     });
     if (!res.ok) {
       const body = await res.text().catch(() => '');
