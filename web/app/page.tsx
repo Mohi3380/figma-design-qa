@@ -1,6 +1,4 @@
 import Link from 'next/link';
-import QAForm from '@/components/QAForm';
-import FigmaConnect from '@/components/FigmaConnect';
 
 const STEPS = [
   { n: '1', h: 'Point it at your design + app', p: "Paste a Figma frame URL and your live (or localhost) app URL. That's the whole setup." },
@@ -84,11 +82,14 @@ export default function Home() {
 
       <section className="block" id="run">
         <div className="wrap">
-          <div className="eyebrow">Run it</div>
-          <h2 className="title">Start a QA</h2>
-          <p className="sub">Paste the two URLs and go. Progress streams live; the report renders right here.</p>
-          <FigmaConnect />
-          <QAForm />
+          <div className="team-cta">
+            <h2>Ready to catch design drift?</h2>
+            <p>Create a free account to run a Design QA — paste a Figma URL and your live app, watch progress stream live, and get a severity-graded report.</p>
+            <Link className="btn btn-primary" href="/signup">Get started free</Link>
+            <p style={{ marginTop: 14, marginBottom: 0 }}>
+              Already have an account? <Link href="/login" style={{ color: '#fff', textDecoration: 'underline' }}>Log in</Link>
+            </p>
+          </div>
         </div>
       </section>
     </>

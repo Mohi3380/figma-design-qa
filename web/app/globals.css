@@ -322,3 +322,43 @@
   :root[data-theme="dark"] .figma-banner.connected { background: rgba(21,128,61,.16); border-color: rgba(21,128,61,.42); color: #7ee2a8; }
   .figma-banner .link { color: var(--muted); text-decoration: underline; font-size: 13px; }
   .figma-banner .link:hover { color: var(--ink); }
+
+  /* ---- Auth pages ---- */
+  .auth-page { min-height: calc(100vh - 64px); display: grid; place-items: center; padding: 48px 24px; background: var(--hero-grad); }
+  .auth-card { width: 100%; max-width: 430px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 32px 30px; }
+  .auth-card h1 { font-size: 24px; font-weight: 800; letter-spacing: -.4px; margin: 0 0 6px; }
+  .auth-card .sub2 { color: var(--muted); font-size: 14px; margin: 0 0 22px; }
+  .auth-field { margin-bottom: 15px; }
+  .auth-field label { display: block; font-size: 13px; font-weight: 600; color: var(--accent-fg); margin-bottom: 6px; }
+  .auth-field input { width: 100%; padding: 11px 13px; border: 1px solid var(--input-border); border-radius: 10px; background: var(--input-bg); color: var(--ink); font: inherit; font-size: 14px; }
+  .auth-field input:focus { outline: none; border-color: var(--blue); background: var(--input-bg-focus); box-shadow: 0 0 0 3px rgba(23,99,230,.15); }
+  .auth-btn { width: 100%; justify-content: center; padding: 12px; font-size: 15px; margin-top: 4px; }
+  .auth-alt { display: flex; align-items: center; gap: 12px; margin: 18px 0; color: var(--muted); font-size: 12.5px; }
+  .auth-alt::before, .auth-alt::after { content: ''; height: 1px; background: var(--line); flex: 1; }
+  .google-btn { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 11px; border: 1px solid var(--input-border); border-radius: 10px; background: var(--surface); color: var(--ink); font: inherit; font-weight: 600; font-size: 14px; cursor: pointer; text-decoration: none; transition: background .15s; }
+  .google-btn:hover { background: var(--surface-2); }
+  .auth-links { display: flex; justify-content: space-between; margin-top: 6px; }
+  .auth-foot { text-align: center; margin-top: 18px; font-size: 13.5px; color: var(--muted); }
+  .auth-foot a, .auth-links a { color: var(--blue); font-weight: 600; text-decoration: none; }
+  .auth-err { background: var(--alert-bg); color: var(--alert-fg); border: 1px solid var(--alert-border); border-radius: 9px; padding: 10px 13px; font-size: 13px; margin-bottom: 16px; }
+  .auth-ok { background: #e7f6ec; color: #15803d; border: 1px solid #bbe6c9; border-radius: 9px; padding: 10px 13px; font-size: 13px; margin-bottom: 16px; }
+
+  /* ---- Dashboard ---- */
+  .dash { padding: 40px 0 64px; min-height: calc(100vh - 64px); }
+  .dash-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 6px; }
+  .dash-head h1 { font-size: 26px; font-weight: 800; margin: 0; }
+  .dash-sub { color: var(--muted); margin: 0 0 24px; }
+  .runs { margin-top: 20px; display: flex; flex-direction: column; gap: 10px; }
+  .run-row { display: flex; align-items: center; gap: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .run-row .u { min-width: 0; flex: 1; }
+  .run-row .u .url { font-weight: 600; color: var(--ink); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .run-row .u .meta { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+  .run-row .counts { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+  .run-row .counts b.fail { color: #dc2626; } .run-row .counts b.pass { color: #15803d; }
+  .badge-status { font-size: 11px; font-weight: 700; border-radius: 999px; padding: 3px 10px; white-space: nowrap; }
+  .badge-status.COMPLETED { background: #e7f6ec; color: #15803d; }
+  .badge-status.FAILED { background: #fdebeb; color: #dc2626; }
+  .badge-status.RUNNING { background: #eef3fc; color: #1763e6; }
+  .badge-status.PENDING { background: var(--soft); color: var(--muted); }
+  .empty-state { text-align: center; color: var(--muted); padding: 44px; border: 1px dashed var(--line); border-radius: 14px; margin-top: 20px; }
+  .dash-loading { display: grid; place-items: center; min-height: calc(100vh - 64px); color: var(--muted); }

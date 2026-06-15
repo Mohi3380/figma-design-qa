@@ -1,8 +1,20 @@
-import Link from 'next/link';
-import ThemeToggle from './ThemeToggle';
+'use client';
 
-/** Shared header — used on every page via the root layout. */
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import ThemeToggle from './ThemeToggle';
+import { useAuth } from './AuthProvider';
+
+/** Shared header. Auth-aware: Start QA / Dashboard appear only when logged in. */
 export default function Nav() {
+  const { user, loading, logout } = useAuth();
+  const router = useRouter();
+
+  async function onLogout() {
+    await logout();
+    router.push('/');
+  }
+
   return (
     <nav>
       <div className="wrap">
@@ -16,7 +28,17 @@ export default function Nav() {
           <Link href="/team">Our Team</Link>
           <a href="https://github.com/Mohi3380/figma-design-qa" target="_blank" rel="noopener noreferrer">GitHub</a>
           <ThemeToggle />
-          <Link href="/#run" className="btn btn-primary">Start QA</Link>
+          {!loading && user ? (
+            <>
+              <Link href="/dashboard">Dashboard</Link>
+              <button className="btn btn-ghost" type="button" onClick={onLogout}>Log out</button>
+            </>
+          ) : !loading ? (
+            <>
+              <Link href="/login">Log in</Link>
+              <Link href="/signup" className="btn btn-primary">Sign up</Link>
+            </>
+          ) : null}
         </span>
       </div>
     </nav>
