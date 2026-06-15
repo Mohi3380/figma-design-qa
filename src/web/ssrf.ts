@@ -35,18 +35,63 @@ function classifyIpv4(ip: string): IpClass {
   return 'global';
 }
 
+/**
+ * Expand any IPv6 literal to its 8 hextets (0..0xffff), handling "::"
+ * compression and a trailing dotted-quad (e.g. ::ffff:1.2.3.4). Returns null
+ * for anything unparseable. This lets classifyIp decode an embedded IPv4 no
+ * matter how it's written.
+ */
+function ipv6ToHextets(ip: string): number[] | null {
+  let s = ip.toLowerCase().split('%')[0]; // drop any zone id
+  // Fold a trailing dotted IPv4 into two hex groups so the dotted and hex
+  // forms collapse to the same representation.
+  const dotted = s.match(/(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (dotted) {
+    const o = dotted.slice(1).map(Number);
+    if (o.some((n) => n > 255)) return null;
+    s = s.replace(
+      /(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/,
+      `${((o[0] << 8) | o[1]).toString(16)}:${((o[2] << 8) | o[3]).toString(16)}`,
+    );
+  }
+  const halves = s.split('::');
+  if (halves.length > 2) return null;
+  const left = halves[0] ? halves[0].split(':') : [];
+  const right = halves.length === 2 && halves[1] ? halves[1].split(':') : [];
+  let groups: string[];
+  if (halves.length === 2) {
+    const missing = 8 - (left.length + right.length);
+    if (missing < 0) return null;
+    groups = [...left, ...Array<string>(missing).fill('0'), ...right];
+  } else {
+    groups = left;
+  }
+  if (groups.length !== 8) return null;
+  const hextets = groups.map((g) => parseInt(g, 16));
+  if (hextets.some((h) => Number.isNaN(h) || h < 0 || h > 0xffff)) return null;
+  return hextets;
+}
+
 function classifyIp(ip: string): IpClass {
   const v = isIP(ip);
   if (v === 4) return classifyIpv4(ip);
   if (v === 6) {
-    const lower = ip.toLowerCase();
-    // IPv4-mapped (::ffff:1.2.3.4) → classify the embedded v4.
-    const mapped = lower.match(/::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-    if (mapped) return classifyIpv4(mapped[1]);
-    if (lower === '::1') return 'loopback';
-    if (lower === '::') return 'reserved';
-    if (/^fe[89ab]/.test(lower)) return 'linklocal'; // fe80::/10
-    if (/^f[cd]/.test(lower)) return 'private'; // fc00::/7 ULA
+    const h = ipv6ToHextets(ip);
+    if (!h) return 'reserved'; // unparseable → treat as unsafe
+    if (h.every((x) => x === 0)) return 'reserved'; // :: (unspecified)
+    const topZero = h[0] === 0 && h[1] === 0 && h[2] === 0 && h[3] === 0 && h[4] === 0;
+    if (topZero && h[5] === 0 && h[6] === 0 && h[7] === 1) return 'loopback'; // ::1
+    // SECURITY: IPv4-mapped (::ffff:0:0/96) and IPv4-compatible (::/96) embed an
+    // IPv4 in the low 32 bits. `new URL()` normalizes these to HEX (e.g.
+    // ::ffff:7f00:1), so we must decode the embedded v4 and classify *that* —
+    // otherwise http://[::ffff:7f00:1]/ (127.0.0.1) or [::ffff:a9fe:a9fe]
+    // (169.254.169.254 metadata) would slip through classified as 'global'.
+    if (topZero && (h[5] === 0xffff || h[5] === 0)) {
+      const v4 = `${h[6] >> 8}.${h[6] & 0xff}.${h[7] >> 8}.${h[7] & 0xff}`;
+      return classifyIpv4(v4);
+    }
+    if ((h[0] & 0xffc0) === 0xfe80) return 'linklocal'; // fe80::/10
+    if ((h[0] & 0xfe00) === 0xfc00) return 'private'; // fc00::/7 ULA
     return 'global';
   }
   return 'reserved'; // not a parseable IP — treat as unsafe
