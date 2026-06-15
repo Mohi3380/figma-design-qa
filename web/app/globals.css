@@ -366,3 +366,39 @@
   .badge-status.PENDING { background: var(--soft); color: var(--muted); }
   .empty-state { text-align: center; color: var(--muted); padding: 44px; border: 1px dashed var(--line); border-radius: 14px; margin-top: 20px; }
   .dash-loading { display: grid; place-items: center; min-height: calc(100vh - 64px); color: var(--muted); }
+
+  /* ---- Authenticated app shell ---- */
+  .app-shell { display: flex; min-height: 100vh; background: var(--bg); }
+  .app-sidebar { width: 244px; flex: none; background: var(--surface); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 18px 14px; position: sticky; top: 0; height: 100vh; z-index: 60; }
+  .app-brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 15px; color: var(--ink); text-decoration: none; letter-spacing: -.2px; padding: 4px 6px 0; line-height: 1.1; }
+  .app-brand .logo { width: 30px; height: 30px; border-radius: 8px; background: linear-gradient(135deg, var(--blue), var(--blue-deep)); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; flex: none; }
+  .app-nav { display: flex; flex-direction: column; gap: 4px; margin-top: 22px; }
+  .app-nav a { display: flex; align-items: center; gap: 11px; padding: 10px 12px; border-radius: 10px; color: var(--muted); text-decoration: none; font-weight: 600; font-size: 14px; transition: background .12s, color .12s; }
+  .app-nav a:hover { background: var(--surface-2); color: var(--ink); }
+  .app-nav a.active { background: var(--soft); color: var(--accent-fg); }
+  .app-back { margin-top: auto; color: var(--muted); text-decoration: none; font-size: 13px; padding: 10px 12px; }
+  .app-back:hover { color: var(--ink); }
+  .app-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .app-topbar { height: 60px; flex: none; display: flex; align-items: center; gap: 14px; padding: 0 24px; border-bottom: 1px solid var(--line); background: var(--bg); position: sticky; top: 0; z-index: 40; }
+  .app-burger { display: none; background: none; border: none; color: var(--ink); cursor: pointer; padding: 4px; }
+  .app-content { flex: 1; padding: 28px 28px 56px; }
+  .app-page { max-width: 1080px; }
+  .app-user { position: relative; }
+  .app-user-btn { display: inline-flex; align-items: center; gap: 9px; background: none; border: 1px solid transparent; border-radius: 999px; padding: 4px 10px 4px 4px; cursor: pointer; color: var(--ink); font: inherit; }
+  .app-user-btn:hover { border-color: var(--line); background: var(--surface-2); }
+  .app-user-name { font-size: 13.5px; font-weight: 600; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .avatar-sm { width: 32px; height: 32px; border-radius: 50%; flex: none; display: inline-flex; align-items: center; justify-content: center; font-size: 12.5px; font-weight: 800; color: #fff; background: linear-gradient(135deg, var(--blue), var(--blue-dark)); overflow: hidden; }
+  .avatar-sm img { width: 100%; height: 100%; object-fit: cover; }
+  .app-menu { position: absolute; right: 0; top: 50px; min-width: 180px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); padding: 6px; z-index: 70; }
+  .app-menu a, .app-menu button { display: block; width: 100%; text-align: left; padding: 9px 12px; border-radius: 8px; background: none; border: none; color: var(--ink); font: inherit; font-size: 14px; cursor: pointer; text-decoration: none; }
+  .app-menu a:hover, .app-menu button:hover { background: var(--surface-2); }
+  .app-menu-scrim { position: fixed; inset: 0; z-index: 60; }
+  .app-scrim { display: none; }
+  @media (max-width: 860px) {
+    .app-sidebar { position: fixed; left: 0; top: 0; transform: translateX(-100%); transition: transform .2s ease; box-shadow: var(--shadow); }
+    .app-sidebar.open { transform: translateX(0); }
+    .app-scrim { display: block; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 55; }
+    .app-burger { display: inline-flex; }
+    .app-user-name { display: none; }
+    .app-content { padding: 20px 16px 48px; }
+  }
