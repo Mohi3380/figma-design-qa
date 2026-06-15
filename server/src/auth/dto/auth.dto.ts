@@ -38,3 +38,14 @@ export class ResetPasswordDto {
   @MaxLength(128)
   password!: string;
 }
+
+export class ChangePasswordDto {
+  @IsOptional()
+  @IsString()
+  currentPassword?: string;
+
+  @IsString()
+  @MinLength(8, { message: 'New password must be at least 8 characters.' })
+  @MaxLength(128)
+  newPassword!: string;
+}

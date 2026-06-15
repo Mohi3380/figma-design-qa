@@ -158,6 +158,23 @@ export class AuthService {
     await this.mail.sendPasswordResetEmail(user.email, `${this.appBaseUrl}/reset-password?token=${raw}`);
   }
 
+  /** Change password for the logged-in user. Current password required unless
+   * the account has none yet (Google-only). Revokes other sessions. */
+  async changePassword(userId: string, currentPassword: string | undefined, newPassword: string): Promise<void> {
+    const user = await this.users.findById(userId);
+    if (!user) throw new UnauthorizedException();
+    if (user.passwordHash) {
+      if (!currentPassword) throw new BadRequestException('Your current password is required.');
+      const ok = await bcrypt.compare(currentPassword, user.passwordHash);
+      if (!ok) throw new BadRequestException('Your current password is incorrect.');
+    }
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await this.prisma.$transaction([
+      this.prisma.user.update({ where: { id: userId }, data: { passwordHash } }),
+      this.prisma.refreshToken.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } }),
+    ]);
+  }
+
   async resendVerification(email: string): Promise<void> {
     const user = await this.users.findByEmail(email);
     if (!user) throw new NotFoundException('No account found with that email address.');

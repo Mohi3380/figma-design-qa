@@ -9,3 +9,5 @@ prisma/*.db
 prisma/*.db-journal
 # QA run outputs (per-job reports/screenshots)
 /qa-output
+# uploaded avatars
+/uploads

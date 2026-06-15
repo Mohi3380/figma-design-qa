@@ -12,9 +12,9 @@ import { UsersModule } from '../users/users.module';
 const googleConfigured = Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
 
 @Module({
-  imports: [UsersModule, PassportModule.register({ session: false }), JwtModule.register({})],
+  imports: [UsersModule, PassportModule.register({ session: false }), JwtModule.register({ global: true })],
   controllers: [AuthController],
   providers: [AuthService, JwtAuthGuard, ...(googleConfigured ? [GoogleStrategy] : [])],
-  exports: [AuthService, JwtAuthGuard, JwtModule],
+  exports: [AuthService],
 })
 export class AuthModule {}

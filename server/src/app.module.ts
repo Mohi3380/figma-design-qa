@@ -13,6 +13,7 @@ import { AuthModule } from './auth/auth.module';
 import { EngineModule } from './engine/engine.module';
 import { FigmaModule } from './figma/figma.module';
 import { QaModule } from './qa/qa.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 
 const isDev = process.env.NODE_ENV !== 'production';
 
@@ -35,6 +36,7 @@ const isDev = process.env.NODE_ENV !== 'production';
     EngineModule,
     FigmaModule,
     QaModule,
+    DashboardModule,
   ],
   controllers: [HealthController],
   providers: [

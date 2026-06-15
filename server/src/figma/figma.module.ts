@@ -1,12 +1,11 @@
 import { Module } from '@nestjs/common';
 import { FigmaService } from './figma.service';
 import { FigmaController } from './figma.controller';
-import { AuthModule } from '../auth/auth.module';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @Module({
-  imports: [AuthModule],
   controllers: [FigmaController],
-  providers: [FigmaService],
+  providers: [FigmaService, JwtAuthGuard],
   exports: [FigmaService],
 })
 export class FigmaModule {}
