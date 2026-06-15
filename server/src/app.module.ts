@@ -5,6 +5,7 @@ import { LoggerModule } from 'nestjs-pino';
 import { validateEnv } from './config/env.validation';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { HealthController } from './health/health.controller';
+import { PrismaModule } from './prisma/prisma.module';
 
 const isDev = process.env.NODE_ENV !== 'production';
 
@@ -19,6 +20,7 @@ const isDev = process.env.NODE_ENV !== 'production';
         autoLogging: true,
       },
     }),
+    PrismaModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_FILTER, useClass: AllExceptionsFilter }],
