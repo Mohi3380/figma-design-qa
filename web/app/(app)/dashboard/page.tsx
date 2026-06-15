@@ -4,18 +4,40 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { API_BASE, api } from '@/lib/api';
+import { RunsBarChart, SeverityPie } from '@/components/DashboardCharts';
 
-interface Run {
+interface RecentRun {
   id: string;
-  figmaUrl: string;
   targetUrl: string;
   status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
   error: string | null;
   createdAt: string;
-  report: { passed: number; failed: number; frameName: string | null; hasPdf: boolean } | null;
+  report: { passed: number; failed: number; frameName: string | null } | null;
 }
 
-function RunRow({ run }: { run: Run }) {
+interface Summary {
+  kpis: {
+    totalRuns: number;
+    passRate: number | null;
+    runsThisWeek: number;
+    mostRecent: { status: string; createdAt: string; targetUrl: string } | null;
+  };
+  severity: Record<string, number>;
+  series: { date: string; completed: number; failed: number }[];
+  recent: RecentRun[];
+}
+
+function timeAgo(iso: string): string {
+  const s = Math.round((Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 60) return 'just now';
+  const m = Math.round(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.round(h / 24)}d ago`;
+}
+
+function RunRow({ run }: { run: RecentRun }) {
   return (
     <div className="run-row">
       <div className="u">
@@ -41,15 +63,31 @@ function RunRow({ run }: { run: Run }) {
   );
 }
 
+function Kpi({ label, value, sub, small }: { label: string; value: React.ReactNode; sub?: string; small?: boolean }) {
+  return (
+    <div className="kpi-card">
+      <div className="k-label">{label}</div>
+      <div className={`k-value${small ? ' k-sm' : ''}`}>{value}</div>
+      {sub && <div className="k-sub">{sub}</div>}
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const { user } = useAuth();
-  const [runs, setRuns] = useState<Run[] | null>(null);
+  const [data, setData] = useState<Summary | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
     try {
-      setRuns(await api.get<Run[]>('/qa/jobs'));
-    } catch {
-      setRuns([]);
+      setData(await api.get<Summary>('/dashboard/summary'));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load dashboard.');
+    } finally {
+      setLoading(false);
     }
   }, []);
 
@@ -65,21 +103,58 @@ export default function DashboardPage() {
       </div>
       <p className="dash-sub">Your Design QA activity at a glance.</p>
 
-      {/* Analytics (KPI cards + charts) arrive in the next phase. */}
+      {loading && (
+        <div className="kpi-grid">
+          {[0, 1, 2, 3].map((i) => (
+            <div className="kpi-skel" key={i} />
+          ))}
+        </div>
+      )}
 
-      <h2 className="title" style={{ textAlign: 'left', marginTop: 24 }}>Recent runs</h2>
-      {runs === null ? (
-        <div className="empty-state">Loading…</div>
-      ) : runs.length === 0 ? (
+      {!loading && error && (
+        <div className="empty-state" style={{ color: 'var(--alert-fg)' }}>Couldn&apos;t load your dashboard — {error}</div>
+      )}
+
+      {!loading && !error && data && data.kpis.totalRuns === 0 && (
         <div className="empty-state">
           No runs yet — <Link href="/start-qa" style={{ color: 'var(--blue)', fontWeight: 600 }}>start your first QA</Link>.
         </div>
-      ) : (
-        <div className="runs">
-          {runs.map((r) => (
-            <RunRow key={r.id} run={r} />
-          ))}
-        </div>
+      )}
+
+      {!loading && !error && data && data.kpis.totalRuns > 0 && (
+        <>
+          <div className="kpi-grid">
+            <Kpi label="Total QA runs" value={data.kpis.totalRuns} />
+            <Kpi label="Check pass rate" value={data.kpis.passRate === null ? '—' : `${data.kpis.passRate}%`} />
+            <Kpi label="Runs this week" value={data.kpis.runsThisWeek} />
+            <Kpi
+              label="Most recent"
+              small
+              value={data.kpis.mostRecent ? data.kpis.mostRecent.status.toLowerCase() : '—'}
+              sub={data.kpis.mostRecent ? timeAgo(data.kpis.mostRecent.createdAt) : undefined}
+            />
+          </div>
+
+          <div className="charts-grid">
+            <div className="chart-card">
+              <h3>Runs over time</h3>
+              <p className="c-sub">Last 30 days · completed vs failed</p>
+              <RunsBarChart series={data.series} />
+            </div>
+            <div className="chart-card">
+              <h3>Issues by severity</h3>
+              <p className="c-sub">Across completed runs</p>
+              <SeverityPie severity={data.severity} />
+            </div>
+          </div>
+
+          <h2 className="title" style={{ textAlign: 'left' }}>Recent runs</h2>
+          <div className="runs">
+            {data.recent.map((r) => (
+              <RunRow key={r.id} run={r} />
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
