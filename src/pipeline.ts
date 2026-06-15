@@ -35,6 +35,8 @@ export interface RunPipelineOptions {
   /** Launch a visible browser during capture. */
   headed?: boolean;
   figmaToken?: string;
+  /** 'pat' (X-Figma-Token, default) or 'oauth' (Bearer, a user's login token). */
+  figmaTokenScheme?: 'pat' | 'oauth';
   anthropicKey?: string;
   log?: (message: string) => void;
 }
@@ -58,7 +60,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<RunPipeline
   }
 
   // FigmaClient throws a clear "Missing Figma token" error when empty.
-  const client = new FigmaClient({ token: opts.figmaToken ?? '' });
+  const client = new FigmaClient({ token: opts.figmaToken ?? '', scheme: opts.figmaTokenScheme ?? 'pat' });
 
   const extracted = await extractFrame({
     fileKey: ref.fileKey,

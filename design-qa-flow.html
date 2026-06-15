@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>KoderLabs · Design QA — Workflow Document</title>
+<style>
+  :root{
+    --navy:#0B2447; --navy-2:#102E5C; --teal:#19C3B2; --teal-dk:#0E8C80;
+    --ink:#15233B; --muted:#5B6B82; --line:#E2E8F0; --bg:#F5F8FB; --card:#FFFFFF;
+    --crit:#E5484D; --high:#F2882B; --med:#E0B515; --low:#9AA7B8;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:"Segoe UI",Roboto,Helvetica,Arial,sans-serif;line-height:1.55;}
+  .wrap{max-width:1040px;margin:0 auto;padding:0 28px 64px;}
+
+  /* Header */
+  header.banner{background:linear-gradient(120deg,var(--navy) 0%,var(--navy-2) 60%,#0F3A52 100%);
+    color:#fff;padding:34px 0;border-bottom:4px solid var(--teal);}
+  .banner .wrap{display:flex;align-items:center;gap:22px;padding-bottom:0;}
+  .banner img{height:54px;width:auto;display:block;}
+  .banner .brand{font-size:13px;letter-spacing:3px;text-transform:uppercase;color:var(--teal);font-weight:700;}
+  .banner h1{margin:2px 0 4px;font-size:27px;font-weight:700;}
+  .banner p{margin:0;color:#C7D6E5;font-size:15px;}
+
+  /* Sections */
+  section{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:26px 28px;margin-top:26px;box-shadow:0 1px 2px rgba(11,36,71,.04);}
+  section.land{}
+  h2{font-size:19px;margin:0 0 4px;color:var(--navy);display:flex;align-items:center;gap:10px;}
+  h2 .num{background:var(--teal);color:#06231f;font-size:13px;font-weight:800;
+    width:26px;height:26px;border-radius:50%;display:inline-grid;place-items:center;}
+  .sub{color:var(--muted);font-size:14px;margin:0 0 18px;}
+
+  /* Flow building blocks */
+  .row{display:flex;align-items:stretch;gap:0;flex-wrap:wrap;}
+  .col{display:flex;flex-direction:column;align-items:center;gap:0;}
+  .box{background:#F2F7FC;border:1.5px solid #CBD9E8;border-radius:11px;padding:13px 15px;
+    min-width:150px;max-width:240px;font-size:13.5px;text-align:center;}
+  .box .t{font-weight:700;color:var(--navy);display:block;margin-bottom:3px;}
+  .box .d{color:var(--muted);font-size:12.5px;}
+  .box.input{background:#EAF2FB;border-color:#9BC0E6;}
+  .box.engine{background:var(--navy);border-color:var(--navy);color:#fff;min-width:200px;}
+  .box.engine .t{color:#fff;font-size:15px;}
+  .box.out{background:#E6FBF6;border-color:#76D9CB;}
+  .box.ai{background:#FFF7E6;border-color:#F0CE73;}
+  /* arrows */
+  .ar{align-self:center;color:var(--teal-dk);font-size:24px;font-weight:700;padding:0 12px;line-height:1;}
+  .ar.dn{padding:8px 0;}
+  .merge{align-self:center;color:var(--teal-dk);font-size:22px;padding:8px 0;}
+
+  /* steps */
+  .steps{display:flex;flex-direction:column;align-items:center;}
+  .step{display:flex;align-items:center;gap:14px;width:100%;max-width:640px;
+    background:#F7FAFD;border:1.5px solid #D7E2EE;border-left:5px solid var(--teal);
+    border-radius:10px;padding:12px 16px;}
+  .step .n{background:var(--navy);color:#fff;font-weight:800;font-size:14px;
+    min-width:30px;height:30px;border-radius:50%;display:grid;place-items:center;}
+  .step.ai{border-left-color:var(--med);background:#FFFBF1;}
+  .step .st{font-weight:700;color:var(--navy);} .step .sd{color:var(--muted);font-size:13px;}
+  .twoup{display:flex;gap:18px;justify-content:center;flex-wrap:wrap;max-width:640px;margin:0 auto;}
+  .twoup .step{flex:1;min-width:240px;}
+
+  /* severity */
+  .sev{display:flex;gap:0;align-items:stretch;flex-wrap:wrap;}
+  .chip{flex:1;min-width:150px;border-radius:11px;padding:14px 16px;color:#fff;}
+  .chip .lv{font-weight:800;font-size:15px;} .chip .ds{font-size:12.5px;opacity:.95;}
+  .chip.c1{background:var(--crit);} .chip.c2{background:var(--high);}
+  .chip.c3{background:var(--med);color:#3a2e00;} .chip.c4{background:var(--low);}
+  .sevnote{margin:12px 0 0;font-size:12.5px;color:var(--muted);}
+
+  /* workflow */
+  .pill{background:#EAF2FB;border:1.5px solid #9BC0E6;border-radius:24px;padding:11px 18px;
+    font-size:13.5px;font-weight:600;color:var(--navy);text-align:center;min-width:130px;}
+  .pill.qa{background:var(--navy);color:#fff;border-color:var(--navy);}
+  .pill.ship{background:#E6FBF6;border-color:#76D9CB;color:var(--teal-dk);}
+  .lbl{font-size:11.5px;color:var(--muted);align-self:center;padding:0 6px;}
+  .loop{margin:14px auto 0;max-width:560px;background:#FFFBF1;border:1.5px dashed #F0CE73;
+    border-radius:10px;padding:11px 14px;text-align:center;font-size:13px;color:#6b5400;}
+
+  table{border-collapse:collapse;width:100%;margin-top:8px;font-size:13px;}
+  th,td{border:1px solid var(--line);padding:9px 11px;text-align:left;vertical-align:top;}
+  th{background:#EEF3F8;color:var(--navy);font-size:12.5px;}
+  td .s{color:var(--muted);}
+
+  .note{background:#F0F6FB;border-left:4px solid var(--teal);border-radius:8px;
+    padding:11px 14px;font-size:13px;color:#3a4a61;margin-top:10px;}
+  footer{margin-top:30px;text-align:center;color:var(--muted);font-size:12px;}
+  footer b{color:var(--navy);}
+
+  @media print{
+    body{background:#fff;} .wrap{max-width:none;}
+    section{box-shadow:none;break-inside:avoid;page-break-inside:avoid;}
+    header.banner{break-after:avoid;}
+  }
+</style>
+</head>
+<body>
+  <header class="banner">
+    <div class="wrap">
+      <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAPoAAAEjCAQAAACxo9TlAAASmElEQVR4nO2dfXwU1bnHj71bAQUhXlGRlyDUl/pSKrbWYhJDSCASY4xpNKYxxU8aMUZCGqIhppGQhhhY1+362S6Ya/TaFhUEjAqK4q0Wq9DirRShii+0tV6tCFShRRPi/u4uGMPLbmZmn5k558ycb/7js7vnOc+XeXZn5sxzGFMonE7LaUhFdmMy7zgUluM9DpegGS9hP/r4AO3IbBnEOzaFBfgYpuB3iMcuzG8dzjtGhan4RmFlXOG9bMMVbbwDVZiFPw9/01QeZT8WtJ3AO1qFCUSUv6dL+SHu8w7gHbGCSCDfkPIo93p5B62gELgImwwqBw54b+UdtyJhggyLDSuPstk3iXfsigQJXoO/JyQd8Pp4B69IhMhx/usElQN/Use6lAQn4tWEpcM3l3f8igQIzsGBxKXjYf/xvGegMEwwSFAObPR/m/cMFAYJJWE1Sfp2fxbvOSgMQpa+11/Oew4KgyjpLkRJdyFKugsJHY8VJOnqh5yMEE/ZXvSfzXsGCsMEb8DHBOkP+HlPQGGc4Dn9rInT4oCvinf8igQIMgQSlv6i7yze8SsSIpiK1xNzrm63SEvkWG9JyPnTvjN4x65ImEASnjSs/G/eXN5xK0gEzsZvDSnvQq1aGCk9fiPauzBHKXcE/nPwtC7lH+JH6hkXx+AbjEbs0VC+rnUC7zgVJuM9NfJbfldM3Z9jLTJaeQeosIa2QZiGxXjmy6de9mILfoUZzeoETaFQKBQKhUKhUCgUCoVCoRCc0v/AeGRhMlKXjuYdi8Jyyr6ODCzFR4ddu/8n7kfK8q/xjkxhCeUMl2FjnLt0L624iHd8CtMpH4Bq7Ovn5uwezFnFO0iFmcz8OuZp3JEHunGP0u4YKhjKNJUf/H5fNZt3rAqTqMjQ3XlyS6f6bncCFYMR0qk8yrJO3gEr6ESOcyNtCF9Xx7r0VDLUGlAO7O9s5B2zgkilseIeoVPVd9mpvADrjUnH+idP5B21gkQC0jc8eTrvqBUklHQXoqS7kMpT8JAx5+qHnPRETtnmGXJ+oHMR75gVZCquQZcB6X/pnM47YgWZipGGWhE+r6q7I4gc65/rVL5DHecOocKDhbqUH8A96jh3DDNHYpkO6U+tGsw7UiL7r8RPI99mv8ELLvvbiKB/3NHZKD9DU/vSVUOOflf2mXgQr3Cdzf+gEbldJ+kQ/lk9qbeq9PjvODYn5QMwO+4quT2Ys+KYd2R7UG1r2PHZjf/qPua/5GF0nY/tCPOOkjNb/JfFyk3ZaAQiCTyS9zF3+dhYr86+GB9wiT42u3ri9ciLKN/JOzoheDQQZ5uuGYMwETOxAE1oQdWj4+MdPDnJCTQvtJYvem6IEWj3KKX8K/yBeD51kDMUd/OeQAy+COcdK32d6wt7H92oDyaoPNeDW3mHH4c94aFHKi9BD++YhKIbDYlozz0BDbxDj0s4PE8d51o8FBpoTHneSDzCO+j+CO85LNieIaT9SZ3LtlCaXuH5X0MO3uQdsAZhpPdJT3VBcd+HjbgXt6MDW7BX97t60Nl+gZbwAoYJeNzC2M0ijKY+6bMcLv15TK0f0Cep6SSUYbvudx/A05jWEWfJY+EJyMNaC2M3kzD69iXqacQXvOOxjL+joC6GrMbjUHnMxZb++BRrUI98XPyrJMaKh+HSiOz5Ed2fWha5FbzgBulP1I6JX5YbMvEu7wBtxgXS19VobK0X0f4O7yBtxfHS36/J7l95lPrSyDm5e3C89MYabeesfojRNa9S43Dp26t1nmPXF+IT3sHahsOl/7zao1N6Mp7iHaxtOFt69c36lEeks8ipl1twtPQ91Vfplc5YXRXvcG1DSf9KeoFrvtWVdCXdWXRVX2dAeh3vcG3D0dJRXa1XeeSHnJd3tLbhbOlYWj1cp/Rz8RvewdqGw6X/U++3ev1M3qHaiMOlA+01/S3y71WejDW8A7URx0sHbtW6+t7A0MI7SFtxgfTPUVbbv/IK3Y8iOwMXSI9qL4+nvZFhDj7jHaDNuEJ6lOV1Y2MoP1+alW1m4hrpQBcewRX1SYdm2zwCN2Ed9vMOigsukq7oRUl3IUq6C1HSXYiS7kKUdBeipLsQJd2FKOkuREl3IUq6C1HSXYiS7kKUdBeipLsQJd2FKOm6+Ddew/MGeqxvwC7eIfeDkq6D55acxwySMxxB3mHHRUnX5JdGG4V+qd2DSt6hx0FJ12B1KCkR5VGyT8ES3uHHRALpf8HtGJt/nP5kh07BtXjZlLHfDk5LVPlB7VNMicJshJe+OndsIukODsSD5LEPBOdQlAu3oUcvgkv/MPeSRBMeSCJvp7E40Sb/SjqFu3OH9pNTLe1T8RZh7OcCI4nKWeRrRkTElp6TQ0l6gKE54aHfC+TTlEekjxFu655DiC0d5fF2ldKHfxieSGjcbsylbNsTJUecXdmORnDp9+Xq7CQRV3uWgZ7ufTzgH6D92f2TMwn/Mj0f5iC4dOAq4rGeSFPAjf5vk5WL3IFSeOm/zT2Lln7fMIObbOz0XU80Ht2iq8aifJiB8NKB+XmDaAp8mYY205nvIyqPSE8RtrRHkUA6cPWx2wYawccwT/dYS31xtts0oHwsVluXDBOQQvr6PI29GbTwDsNKXSNt9n6faJzleVBrcT6oSCEdaM4/gabCOwVvaI6y13sj0XiEvFShS3sUSaQD19CulXgZ7tIcI+ClGo/uv7jMhmzQkEb6+vxzaDraRmj2inuNWtzzGcpsyQYNaaQDLQXEEt92LT7SGGOldxhJ+vfxD1tyQUMi6UBBAU06wwLNMeYlfsKWPwrLbcgCHamkv1RwLsk6ax2heZ3sTV9mYp9dwPBjW7JARyrpwIJCYolv/YFmAX7cl1CJL7hM88tDFCSTDhQW0qQz/ExzDK9f+4OOVj4Kj9kwe3OQTvrvCr9Jss5aRmje5d7pLzb2mYUMN9kye3OQTjpwVxGxxLcUaJb4Z/2GVs0UpkhT2qNIKB24rogmXc/t1l/oX0RROBorbJi1eUgp/eUiw0+cHEnz6ejUGGNf4CZ9n1XEcLMtszYPKaUDC4uJJb45Hx9qjLEpcJEu6WnYacuczUNS6cD1Bn9rHS2doUlzjAeDmg80FY3Ref9OJKSV/krx+STrrOl0zRU1mg87FDPcYstszUVa6cCiEmKJb7pas8RvDab2K/1y6Up7FImlA8UlNOkMd2qOsSIUdyVN8RiDq+9EQWrpG0ouIFlnjadhleYobaGY7y1hwj6KrIXU0oG7S08kas/TLPHvhLJjSp+Mj22Zo/lILh0oKaVJZ/ip5hhrlpx8jPJkzTN9cZFe+sbSC0nWWcNpOq6n/aL9iPeUMsyyYW5WIb104J4ZxBLfkKv5QPGu9iOWTJZmSFvaozhAOlA6gyad4Q7NMV5sH/OV8rEJPhYpCo6Q/vsZ3yJZZ/Wn6rgbHuo4+NoZDLNtmJOVOEI64C8jlvj6KzVL/L86qg5KzxS6R5weHCId+FEZTTrDXM0xNi+6MOsUQRsNGMEx0v9QNoFkndWdquMxhQ5U2TAXq3GMdCBQTizxddPxf7wnYQsOkg7cWE6TznA77ynYgqOkbyondpCoHY5HeU/CBhwlHbh3JrHE117hghLvMOlAWQVNOhP+6XI6jpO+qWIiyTqrGY6HeU/CYhwnHQhVDCZqz8b7vCdhKQ6UDpRX0qQzoXtD0XGk9FcrLyZZZ9Vn4Tnek7AQR0oHFlcSS3z1VdjDexKW4VDpwE1VNOkMDbynYBmOlf6/Vd8hWWdVZ+FZ3pOwCMdKB+6rIpb4qlyHlngHSwdurqZJZ6jnPQVLcLT0P1Z/l2SdVX4Da3lPwgIcLR1oryaW+MocB5Z4h0sHbqmhSdezokY2HC/9tZrvkayzivF4hvckTMbx0oH7a4YQtU/Hbt6TMBUXSAduraVJd9qKGldI31x7Kck6mzlOs5mwTLhCOvBALbHEl09zUIl3iXRgVh1NupNW1LhG+uY6Yi/38nECb7plDNdIBx6sI5b4sizpH2g6hEOk/wOf6HjV7HqadKesqHGI9Br8EO9pvupP9ZNI1lnZmQ54ks0h0n+fdcEiBp+OVz5UTyzxDnhm1SHSDzYl6Bigq1XATxpo0hl+Yvl8rMYB0u+b8WUboPZ0/Fnz1VsaLiNZZzNk70PhAOl/LT1MYvssHRvh/bLhJJr20gzJS7z00mcf3lKsneF+He+Z00iTLnsDEsmld5aOPVLIknPxsua7Xm9MIVmPthqSt4uc5NI/Lpl8rJBQqY7i++tGYomXuF+k5NKbSjwxpDO06XhvbRNNusztAyWWvq4kzgbboSQd+5dvbeq3qbcO7cmS9oCWWvr18Rt/B1OxVfP9DzcRS3zx5ZKWeGmlL+p/F5fgHBzQ/Izbm2nSZW3+Lan0HcUaa2GCDIs1P2VrcxrJerTNv3w7uEgr/QbtbXsCZ2O95uc80kws8RLu1SSp9JVFY/rx0Kf9hzqEzG2hSWeotmHG5iKh9J1FOotygKFZ89O2tVxOss6KviHd060SSm8oinF2Hhv/MB03R5a1DKVpL8zAfhvmbR7SSX+2cLwRIf4sbNf8zDtaadI9kjUwkE664f3TfVWaJ29/bk0nWWeF46V6ulUy6QsKDW/A5xug487b8lZiiS+YLFGJl0r6uwUJtRTxTcAGzc9uaKNJ90jUwEAq6cUFCSrxXqd58vZGW4w7doa0j5Pm6VaJpC8vGJWoEC/DQs3PX9FGLPH5l+PfNuSBjjTSP8onPaHiHaZj97VGL026B3U2ZIKONNJvyScJYaxtMt7QGOMN7xTaGPlyPN0qifQ1+eOIzlnbtfhIc5yV3mG0UfJSJSjxckjPIx6BkfJ+hs5jcJ6PJt2D2yxOBh0ppDfnDSIqZ7hX51hv+jJpY+WdqWPdDl8kkP7HPOIu6RHpN2Kv7vEe9xFLfG6KjtX3PJFA+g/yiMp1XZw5nPl+mnSP4A0MhJfenjucqPx4w9tzbPdn0cbMHSt0AwPBpX+Yewkt/bpuuBzLE35iic+ZJHCJF1x6eS5Rua5bq7FoDtCkewRuYCC09KdykonK9SyiiM1bgam0sXOShW1gILL0nHRa2nUtl4rPk4Ek2vjZlwpa4gWW3phDPDvXtTCyP1qCNOkeQRdNCiv91exvEpWPJO+49FZwGi2G7DFCNjAQVvrV2aR0Bxn8JkSxOkgs8VO/h30mxGEugkpfmE18CCF4s0nJbg3RpHtQZUocZiKk9A+mEvdLDU7EqybF8naIVnLY1NHCNTAQUnoJ7WwpNBAPmRjNmhCxxGd+V7ASL6D0zqmjaUkO3ZbANbj+aFtCk+4RrIGBcNL3ZRJ3WAqlYZvJMb2z5ApaTJmjhWpgIJz0OzJJZ+dLTrZkwdIz7SfTtGd8x8DNXasRTPrzmWdSUtuuZ9VrYnjbadI9AjUwEEx6Dm3ZSvu1lm13/257Dik0ljEKqyyKzShCSW/NILXrbR+DFy2Mbm3Hf9K0p0/EpxbGpx+BpL+fMYGS0g6GkMUR+jpo0gcKsi5eIOnXZZBS2lFmecfWHR1XkkJk6cnk+wFmIIz0VekjScoH4QbchSZL/xZ2EJfrpTNM4f4lKoz0T9OJF15lIW2gAOviBZF+W/pAjiZsJW0M9x41QkjfkGaopYjcpDFM5lzihZBeTOzhJxkpSfg5p0wfQgDpr7jpOI+SwpDFJdO9CCC9OY24g5J8pIzDK1xyfQj+0lOIuyzISKTA38Mj11/CXfonKaTrcHKS4sGPOeS6F+7S30s5j2P2uTFpEodc98Jd+rMpxHUycqKkuxB3S1fl3X64S1c/5OyHu3Rguruux0Vx+ymbOy/OnK1jNynrEED61rRzOOafAykM07lkuhcBpLvvhssIPMYp04cQQrrbbq3yvd0iiHS1iMJeBJH+BTLT+XmwkbQh+Bm3LPciiPTI+TrSaathZSDdgzKOOe5FGOlR7ZOdrT2d7yWZPgSSDuxGSebxHK1YSsZp+G/O+e1FKOlRVuE8YgM3Ack8EeV4l3dqv0I46UAPXkApteeMKEw9DuMxD2/zTuoRCCi9l21Yhrtwp8VPrVj3dyfuxjr8lXcaYyCwdIVVKOkuREl3IUq6C1HSXYiS7kKUdBeipLsQJd2FKOkuREl3IUq6C1HSXYiS7kKUdBeipLsQJd2FKOkuREl3IUq6CzlM+iz08I5GYQNhNPVJT1XSXcER0oeYvIWdQkzCSGd9dD8W+QeFwwnvYIfTnaIKvOMJh+exI4kc6+oXvLPZER56tPTB2K5KvIPZHY7Vta/rfOzkHZnCInb35MZQflD7YKxVRd5xhLGp51txlB/is2L8QYl3DGG83V3Sr/Be9o9GCeZxf+BX/VH/qrou1CVcoVA4jP8HQih6zW4OEyIAAAAASUVORK5CYII=" alt="KoderLabs logo" />
+      <div>
+        <div class="brand">KoderLabs</div>
+        <h1>Design QA — Figma&nbsp;vs.&nbsp;Live&nbsp;Website</h1>
+        <p>Automated visual quality check: the design is the source of truth, the live site is graded against it.</p>
+      </div>
+    </div>
+  </header>
+
+  <div class="wrap">
+
+    <!-- 1. BIG PICTURE -->
+    <section>
+      <h2><span class="num">1</span> The Big Picture</h2>
+      <p class="sub">Two inputs in, one report out — no manual screenshots, no per-page setup.</p>
+      <div class="row" style="justify-content:center;">
+        <div class="col" style="justify-content:center;gap:14px;">
+          <div class="box input"><span class="t">🎨 Figma Design</span><span class="d">paste the frame link</span></div>
+          <div class="box input"><span class="t">🌐 Live Website</span><span class="d">paste the page URL</span></div>
+        </div>
+        <span class="ar">→</span>
+        <div class="box engine" style="align-self:center;"><span class="t">⚙️ Design QA Engine</span><span class="d" style="color:#B9CBE2;">compares design to build</span></div>
+        <span class="ar">→</span>
+        <div class="box out" style="align-self:center;"><span class="t">📄 Report</span><span class="d">PDF · HTML · JSON</span></div>
+      </div>
+    </section>
+
+    <!-- 2. HOW IT WORKS -->
+    <section>
+      <h2><span class="num">2</span> How It Works</h2>
+      <p class="sub">Six stages — reading the design and capturing the live site run in parallel, then everything is compared.</p>
+      <div class="twoup">
+        <div class="step"><span class="n">1</span><div><span class="st">Read the design</span><br><span class="sd">layout, colors, text &amp; sizes, straight from Figma</span></div></div>
+        <div class="step"><span class="n">2</span><div><span class="st">Capture the live site</span><br><span class="sd">open the real page in a browser, record every element + a screenshot</span></div></div>
+      </div>
+      <div class="merge">↓</div>
+      <div class="steps" style="gap:12px;">
+        <div class="step"><span class="n">3</span><div><span class="st">Match them up</span><br><span class="sd">pair each design element with its counterpart on the live site</span></div></div>
+        <span class="ar dn">↓</span>
+        <div class="step"><span class="n">4</span><div><span class="st">Spot the differences</span><br><span class="sd">compare color, size, position, spacing, text &amp; typography</span></div></div>
+        <span class="ar dn">↓</span>
+        <div class="step"><span class="n">5</span><div><span class="st">Visual proof</span><br><span class="sd">overlay screenshots and highlight the mismatched areas</span></div></div>
+        <span class="ar dn">↓</span>
+        <div class="step ai"><span class="n">6</span><div><span class="st">AI double-check</span><br><span class="sd">AI filters out false alarms and rates how serious each issue is</span></div></div>
+        <span class="ar dn">↓</span>
+        <div class="step" style="border-left-color:var(--teal-dk);background:#E9FBF6;"><span class="n" style="background:var(--teal-dk);">✓</span><div><span class="st">Report delivered</span><br><span class="sd">every issue ranked by severity, with side-by-side evidence</span></div></div>
+      </div>
+      <div class="note"><b>Note:</b> Step&nbsp;6 (AI double-check) runs when an AI key is configured; without it the flow still works and simply skips the noise-filtering step.</div>
+    </section>
+
+    <!-- 3. SEVERITY -->
+    <section>
+      <h2><span class="num">3</span> How Issues Are Graded</h2>
+      <p class="sub">Findings are ranked so the team fixes what matters first.</p>
+      <div class="sev">
+        <div class="chip c1"><div class="lv">🔴 Critical</div><div class="ds">Element missing or badly broken</div></div>
+        <span class="ar">→</span>
+        <div class="chip c2"><div class="lv">🟠 High</div><div class="ds">Clearly wrong color / size / text</div></div>
+        <span class="ar">→</span>
+        <div class="chip c3"><div class="lv">🟡 Medium</div><div class="ds">Noticeable but minor drift</div></div>
+        <span class="ar">→</span>
+        <div class="chip c4"><div class="lv">⚪ Low / Info</div><div class="ds">Tiny, often cosmetic</div></div>
+      </div>
+      <p class="sevnote">A release can be set to <b>block automatically</b> when any issue at or above a chosen level (e.g. “High”) is found.</p>
+    </section>
+
+    <!-- 4. WHERE IT FITS -->
+    <section>
+      <h2><span class="num">4</span> Where It Fits in Your Workflow</h2>
+      <p class="sub">Runs on demand, or automatically as part of the release process.</p>
+      <div class="row" style="justify-content:center;align-items:center;">
+        <div class="pill">Designer<br>finishes Figma</div><span class="ar">→</span>
+        <div class="pill">Developer<br>builds the page</div><span class="ar">→</span>
+        <div class="pill qa">Design QA<br>runs the check</div><span class="ar">→</span>
+        <div class="pill ship">✅ Ship it<br><span style="font-weight:400;">matches design</span></div>
+      </div>
+      <div class="loop">↺ &nbsp;If differences are found → developer fixes &amp; re-runs the check until it matches.</div>
+    </section>
+
+    <!-- 5. WHAT IT CHECKS (reference table) -->
+    <section>
+      <h2><span class="num">5</span> What It Checks — At a Glance</h2>
+      <p class="sub">The comparison covers the things a designer would flag in a manual review.</p>
+      <table>
+        <tr><th>Stage</th><th>In plain words</th><th>You get</th></tr>
+        <tr><td><b>Read the design</b></td><td>Pulls layout, colors, text, fonts &amp; sizes from your Figma frame</td><td>The “source of truth”</td></tr>
+        <tr><td><b>Capture the live site</b></td><td>Opens the real page in a real browser, records every element + screenshot</td><td>The “as-built” snapshot</td></tr>
+        <tr><td><b>Match &amp; compare</b></td><td>Pairs elements, then checks color, size, position, spacing, text &amp; typography</td><td>A list of mismatches</td></tr>
+        <tr><td><b>Visual proof</b></td><td>Highlights the exact wrong areas on a screenshot</td><td>Side-by-side evidence</td></tr>
+        <tr><td><b>AI double-check</b></td><td>Confirms real problems vs. noise and ranks severity</td><td>A trustworthy, prioritized report</td></tr>
+      </table>
+    </section>
+
+    <footer>
+      <b>KoderLabs</b> — Design QA &nbsp;·&nbsp; Figma-vs-Live visual quality automation &nbsp;·&nbsp; client review document
+    </footer>
+  </div>
+</body>
+</html>
