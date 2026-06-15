@@ -9,6 +9,7 @@ export interface User {
   name?: string | null;
   emailVerified: boolean;
   avatarUrl?: string | null;
+  hasPassword?: boolean;
 }
 
 interface AuthContextValue {

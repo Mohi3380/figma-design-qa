@@ -47,6 +47,7 @@ export class UsersService {
       name: user.name,
       emailVerified: user.emailVerified,
       avatarUrl: user.avatarUrl,
+      hasPassword: Boolean(user.passwordHash),
       createdAt: user.createdAt,
     };
   }
