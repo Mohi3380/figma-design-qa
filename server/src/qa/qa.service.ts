@@ -71,6 +71,7 @@ export class QaService {
         figmaToken: tokenInfo.token,
         figmaTokenScheme: tokenInfo.scheme,
         anthropicKey: this.config.get<string>('ANTHROPIC_API_KEY'),
+        allowPrivateTargets: this.config.get<string>('QA_ALLOW_PRIVATE_TARGETS') === 'true',
         log: (message: string) => emit('log', { message }),
       });
 
@@ -105,14 +106,17 @@ export class QaService {
         hasPdf: Boolean(result.pdfPath),
       });
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      this.logger.warn({ err: message, jobId }, 'QA job failed');
+      // Log the full detail (incl. stack) server-side only; surface a sanitized
+      // message to the client + stored job (no filesystem paths / stack leak).
+      // (Security review: client-facing error sanitization.)
+      this.logger.warn({ err: err instanceof Error ? (err.stack ?? err.message) : String(err), jobId }, 'QA job failed');
+      const safe = sanitizeError(err);
       if (jobId) {
         await this.prisma.qAJob
-          .update({ where: { id: jobId }, data: { status: 'FAILED', error: message, finishedAt: new Date() } })
+          .update({ where: { id: jobId }, data: { status: 'FAILED', error: safe, finishedAt: new Date() } })
           .catch(() => undefined);
       }
-      emit('error', { message, jobId });
+      emit('error', { message: safe, jobId });
     } finally {
       subject.complete();
     }
@@ -161,6 +165,21 @@ export class QaService {
     if (!p) throw new NotFoundException(`No ${kind} report for this job.`);
     return p;
   }
+}
+
+/**
+ * Turn an arbitrary thrown error into a safe, user-facing one-liner: drop the
+ * stack (first line only), strip absolute filesystem paths (Windows drives +
+ * common unix roots), and cap length. Keeps useful gist (Figma API status,
+ * "Could not load …", "No Figma access …") without leaking internals.
+ */
+function sanitizeError(err: unknown): string {
+  const raw = err instanceof Error ? err.message : String(err);
+  let msg = raw.split('\n')[0].trim();
+  msg = msg.replace(/[A-Za-z]:\\[^\s"'<>]+/g, '<path>'); // Windows absolute paths
+  msg = msg.replace(/\/(?:home|users|var|etc|tmp|root|app|opt|usr)\/[^\s"'<>]*/gi, '<path>'); // common unix paths
+  if (msg.length > 300) msg = msg.slice(0, 299) + '…';
+  return msg || 'QA run failed.';
 }
 
 function safeJson(s: string | null): unknown {

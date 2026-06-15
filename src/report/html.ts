@@ -90,7 +90,7 @@ export function renderHtmlReport(report: ComparisonReport, options: RenderOption
   <h1>Design QA report — ${esc(report.design.frameName)}</h1>
   <div class="meta">
     <code>${esc(report.design.fileKey)}</code> node <code>${esc(report.design.frameId)}</code>
-    ↔ <a href="${esc(report.live.url)}">${esc(report.live.url)}</a>
+    ↔ <a href="${esc(report.live.url)}" target="_blank" rel="noopener noreferrer">${esc(report.live.url)}</a>
     @ ${report.live.viewport.width}×${report.live.viewport.height}
     · compared ${esc(report.comparedAt)}${report.scale !== 1 ? ` · scale ${report.scale}` : ''}
   </div>
@@ -238,10 +238,20 @@ function rank(severity: Severity): number {
   return SEVERITY_ORDER.indexOf(severity);
 }
 
+/**
+ * Escape HTML-significant chars so captured/untrusted strings (the live URL,
+ * DOM text, element names, expected/actual values, etc.) can't break out of
+ * HTML text or quoted attributes. Security-review audit: every interpolated
+ * untrusted field in this file is wrapped in esc(); only numbers and our own
+ * enum strings (severity/result) are emitted raw, which is safe. Single quotes
+ * are escaped too (defense-in-depth for any future single-quoted attribute),
+ * and the input is coerced to a string so a non-string value can't throw.
+ */
 function esc(text: string): string {
-  return text
+  return String(text)
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;');
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
 }

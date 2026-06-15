@@ -34,6 +34,8 @@ export interface RunPipelineOptions {
   pdf: boolean;
   /** Launch a visible browser during capture. */
   headed?: boolean;
+  /** Allow loopback/private targets (local dev QA). Link-local/metadata always blocked. */
+  allowPrivateTargets?: boolean;
   figmaToken?: string;
   /** 'pat' (X-Figma-Token, default) or 'oauth' (Bearer, a user's login token). */
   figmaTokenScheme?: 'pat' | 'oauth';
@@ -80,6 +82,7 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<RunPipeline
     outDir: opts.outDir,
     mappingAttribute: opts.config.matching.preferAttribute,
     headed: opts.headed,
+    allowPrivateTargets: opts.allowPrivateTargets,
     log,
   });
 
