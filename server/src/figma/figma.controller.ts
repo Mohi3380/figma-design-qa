@@ -1,0 +1,72 @@
+import {
+  Controller,
+  Get,
+  HttpCode,
+  Post,
+  Req,
+  Res,
+  ServiceUnavailableException,
+  UseGuards,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import type { Request, Response } from 'express';
+import { FigmaService } from './figma.service';
+import { JwtAuthGuard, AuthUser } from '../auth/jwt-auth.guard';
+import { CurrentUser } from '../auth/current-user.decorator';
+import { randomToken } from '../common/crypto.util';
+
+@Controller('figma')
+@UseGuards(JwtAuthGuard)
+export class FigmaController {
+  constructor(
+    private readonly figma: FigmaService,
+    private readonly config: ConfigService,
+  ) {}
+
+  @Get('status')
+  status(@CurrentUser() user: AuthUser) {
+    return this.figma.getStatus(user.id);
+  }
+
+  @Get('login')
+  login(@Res() res: Response) {
+    if (!this.figma.isConfigured()) {
+      throw new ServiceUnavailableException('Figma connect is not configured.');
+    }
+    const state = randomToken(16);
+    res.cookie('figma_oauth_state', state, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 600_000,
+    });
+    return res.redirect(this.figma.buildAuthorizeUrl(state));
+  }
+
+  @Get('callback')
+  async callback(@Req() req: Request, @Res() res: Response, @CurrentUser() user: AuthUser) {
+    const appUrl = this.config.get<string>('APP_BASE_URL') ?? 'http://localhost:4200';
+    const code = (req.query.code as string) || '';
+    const state = (req.query.state as string) || '';
+    const expected = req.cookies?.['figma_oauth_state'];
+    res.clearCookie('figma_oauth_state', { path: '/' });
+
+    if (!code || !state || state !== expected) {
+      return res.redirect(`${appUrl}/dashboard?figma=error`);
+    }
+    try {
+      await this.figma.exchangeAndStore(user.id, code);
+      return res.redirect(`${appUrl}/dashboard?figma=connected`);
+    } catch {
+      return res.redirect(`${appUrl}/dashboard?figma=error`);
+    }
+  }
+
+  @Post('disconnect')
+  @HttpCode(200)
+  async disconnect(@CurrentUser() user: AuthUser) {
+    await this.figma.disconnect(user.id);
+    return { ok: true };
+  }
+}

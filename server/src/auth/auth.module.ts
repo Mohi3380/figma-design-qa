@@ -15,6 +15,6 @@ const googleConfigured = Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOO
   imports: [UsersModule, PassportModule.register({ session: false }), JwtModule.register({})],
   controllers: [AuthController],
   providers: [AuthService, JwtAuthGuard, ...(googleConfigured ? [GoogleStrategy] : [])],
-  exports: [AuthService, JwtAuthGuard],
+  exports: [AuthService, JwtAuthGuard, JwtModule],
 })
 export class AuthModule {}
