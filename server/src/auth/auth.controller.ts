@@ -87,7 +87,15 @@ export class AuthController {
   @Throttle(tight)
   async forgotPassword(@Body() dto: ForgotPasswordDto) {
     await this.auth.forgotPassword(dto.email);
-    return { ok: true };
+    return { ok: true, sent: true };
+  }
+
+  @Post('resend-verification')
+  @HttpCode(200)
+  @Throttle(tight)
+  async resendVerification(@Body() dto: ForgotPasswordDto) {
+    await this.auth.resendVerification(dto.email);
+    return { ok: true, sent: true };
   }
 
   @Post('reset-password')
