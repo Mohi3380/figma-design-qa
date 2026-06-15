@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { Observable } from 'rxjs';
+import { Throttle } from '@nestjs/throttler';
 import { QaService } from './qa.service';
 import { RunQaDto } from './dto/run-qa.dto';
 import { JwtAuthGuard, AuthUser } from '../auth/jwt-auth.guard';
@@ -20,6 +21,10 @@ import { CurrentUser } from '../auth/current-user.decorator';
 export class QaController {
   constructor(private readonly qa: QaService) {}
 
+  // A QA run launches a headless browser and makes outbound requests, so it's
+  // expensive and an SSRF-amplification vector — keep it tightly throttled
+  // (well below the global default). (Security review: rate-limit finding.)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Sse('run')
   run(@Query() dto: RunQaDto, @CurrentUser() user: AuthUser): Observable<MessageEvent> {
     return this.qa.run(user.id, {

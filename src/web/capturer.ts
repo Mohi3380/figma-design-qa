@@ -101,7 +101,15 @@ export async function captureUrl(options: CaptureOptions): Promise<ViewportCaptu
         await page.addInitScript({ content: 'globalThis.__name = (fn) => fn;' });
         // Block subresource/redirect requests to internal hosts (DNS-rebinding).
         await installSsrfGuard(page, { allowPrivate });
-        await page.goto(url, { waitUntil: 'networkidle', timeout: 30_000 });
+        try {
+          // networkidle yields stable typography/layout for the diff, but pages
+          // with long-lived connections (websockets/polling) never go idle — cap
+          // at 30s and surface a clear error instead of hanging. (Review: goto robustness.)
+          await page.goto(url, { waitUntil: 'networkidle', timeout: 30_000 });
+        } catch (err) {
+          const msg = err instanceof Error ? err.message.split('\n')[0] : String(err);
+          throw new WebCaptureError(`Could not load ${url} within 30s — ${msg}`);
+        }
         // Late font swaps would corrupt typography + text boxes.
         await page.evaluate(() => document.fonts.ready.then(() => undefined));
 
