@@ -10,6 +10,9 @@ import { PrismaModule } from './prisma/prisma.module';
 import { MailModule } from './mail/mail.module';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
+import { EngineModule } from './engine/engine.module';
+import { FigmaModule } from './figma/figma.module';
+import { QaModule } from './qa/qa.module';
 
 const isDev = process.env.NODE_ENV !== 'production';
 
@@ -29,6 +32,9 @@ const isDev = process.env.NODE_ENV !== 'production';
     MailModule,
     UsersModule,
     AuthModule,
+    EngineModule,
+    FigmaModule,
+    QaModule,
   ],
   controllers: [HealthController],
   providers: [
