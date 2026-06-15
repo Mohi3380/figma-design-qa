@@ -131,6 +131,8 @@ program
         outDir: opts.out,
         mappingAttribute: config.matching.preferAttribute,
         headed: opts.headed,
+        // CLI is operator-run on a trusted machine; allow local/private targets.
+        allowPrivateTargets: true,
         interactions: (opts.click ?? []).map((click) => ({ click })),
         log: (msg) => console.log(`▸ ${msg}`),
       });
@@ -249,6 +251,7 @@ program
           headed: opts.headed,
           figmaToken: process.env.FIGMA_TOKEN,
           anthropicKey: process.env.ANTHROPIC_API_KEY,
+          allowPrivateTargets: true,
           log: (msg) => console.log(`▸ ${msg}`),
         });
         printReport(result.report, result.pdfPath ?? result.htmlPath ?? result.jsonPath);

@@ -21,6 +21,7 @@ import { chromium, type Browser } from 'playwright';
 import type { LiveCapture } from '../types.js';
 import { normalizeDomTree } from './normalizer.js';
 import { CAPTURED_STYLES, snapshotDom, type RawDomNode } from './snapshot.js';
+import { assertSafeUrl, installSsrfGuard, SsrfBlockedError } from './ssrf.js';
 
 export class WebCaptureError extends Error {}
 
@@ -35,6 +36,9 @@ export interface CaptureOptions {
   browser?: Browser;
   /** Launch a visible browser window so the capture can be watched. */
   headed?: boolean;
+  /** Allow loopback/private (RFC-1918) targets — for local dev QA only.
+   * Link-local/metadata are always blocked regardless. Defaults to false. */
+  allowPrivateTargets?: boolean;
   /** Interactions to perform after the base capture — click a trigger
    * (e.g. a button that opens a modal) and capture the resulting state.
    * Each produces an extra ViewportCapture tagged with `state`. */
@@ -66,6 +70,15 @@ const VIEWPORT_HEIGHTS: Record<number, number> = { 1440: 900, 768: 1024, 375: 81
 export async function captureUrl(options: CaptureOptions): Promise<ViewportCapture[]> {
   const { url, viewports, outDir, mappingAttribute } = options;
   const log = options.log ?? (() => {});
+  const allowPrivate = options.allowPrivateTargets ?? false;
+
+  // SSRF guard: validate the target before doing anything else.
+  try {
+    await assertSafeUrl(url, { allowPrivate });
+  } catch (err) {
+    if (err instanceof SsrfBlockedError) throw new WebCaptureError(err.message);
+    throw err;
+  }
 
   await mkdir(outDir, { recursive: true });
 
@@ -86,7 +99,9 @@ export async function captureUrl(options: CaptureOptions): Promise<ViewportCaptu
         // helper calls into the serialized snapshotDom source. The helper
         // doesn't exist in the page, so shim it before any evaluate runs.
         await page.addInitScript({ content: 'globalThis.__name = (fn) => fn;' });
-        await page.goto(url, { waitUntil: 'networkidle' });
+        // Block subresource/redirect requests to internal hosts (DNS-rebinding).
+        await installSsrfGuard(page, { allowPrivate });
+        await page.goto(url, { waitUntil: 'networkidle', timeout: 30_000 });
         // Late font swaps would corrupt typography + text boxes.
         await page.evaluate(() => document.fonts.ready.then(() => undefined));
 

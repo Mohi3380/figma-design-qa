@@ -71,6 +71,7 @@ export class QaService {
         figmaToken: tokenInfo.token,
         figmaTokenScheme: tokenInfo.scheme,
         anthropicKey: this.config.get<string>('ANTHROPIC_API_KEY'),
+        allowPrivateTargets: this.config.get<string>('QA_ALLOW_PRIVATE_TARGETS') === 'true',
         log: (message: string) => emit('log', { message }),
       });
 
