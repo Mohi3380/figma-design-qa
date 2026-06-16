@@ -113,9 +113,11 @@ export interface VisionOptions {
   outDir: string;
   /** Issues per request; evidence images are the real payload driver. */
   chunkSize?: number;
-  /** Injectable for tests. Defaults to a real Anthropic client (reads
-   * ANTHROPIC_API_KEY from the environment). */
+  /** Injectable for tests. Defaults to a real Anthropic client built with
+   * `apiKey` below — NOT the process environment (keys are per-user). */
   messages?: MessagesLike;
+  /** The caller's Anthropic API key. Required unless `messages` is stubbed. */
+  apiKey?: string;
   log?: (message: string) => void;
 }
 
@@ -133,7 +135,15 @@ export async function adjudicateIssues(
   }
   log(`Adjudicating ${candidates.length} candidate issues with ${options.model}…`);
 
-  const messages = options.messages ?? new Anthropic().messages;
+  // Build the client from the caller-supplied key, never the environment, so a
+  // run can only ever use its own user's Anthropic credential.
+  let messages = options.messages;
+  if (!messages) {
+    if (!options.apiKey) {
+      throw new VisionError('No Anthropic API key provided for vision adjudication.');
+    }
+    messages = new Anthropic({ apiKey: options.apiKey }).messages;
+  }
 
   for (let i = 0; i < candidates.length; i += chunkSize) {
     const chunk = candidates.slice(i, i + chunkSize);

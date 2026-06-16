@@ -49,6 +49,7 @@ export const api = {
     apiFetch<T>(p, { method: 'POST', body: data ? JSON.stringify(data) : undefined }),
   patch: <T = unknown>(p: string, data?: unknown) =>
     apiFetch<T>(p, { method: 'PATCH', body: data ? JSON.stringify(data) : undefined }),
+  del: <T = unknown>(p: string) => apiFetch<T>(p, { method: 'DELETE' }),
 };
 
 /** Upload multipart form data (e.g. avatar). Lets the browser set the boundary. */

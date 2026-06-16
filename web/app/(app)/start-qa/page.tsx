@@ -1,7 +1,7 @@
 'use client';
 
 import QAForm from '@/components/QAForm';
-import FigmaConnect from '@/components/FigmaConnect';
+import ConnectionsPanel from '@/components/ConnectionsPanel';
 
 export default function StartQaPage() {
   return (
@@ -12,7 +12,7 @@ export default function StartQaPage() {
       <p className="dash-sub">
         Paste a Figma frame URL and your live app URL. Progress streams live and the report renders below.
       </p>
-      <FigmaConnect />
+      <ConnectionsPanel />
       <QAForm />
     </div>
   );

@@ -11,6 +11,7 @@ import { MailModule } from './mail/mail.module';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { EngineModule } from './engine/engine.module';
+import { CredentialsModule } from './credentials/credentials.module';
 import { FigmaModule } from './figma/figma.module';
 import { QaModule } from './qa/qa.module';
 import { DashboardModule } from './dashboard/dashboard.module';
@@ -34,6 +35,7 @@ const isDev = process.env.NODE_ENV !== 'production';
     UsersModule,
     AuthModule,
     EngineModule,
+    CredentialsModule,
     FigmaModule,
     QaModule,
     DashboardModule,

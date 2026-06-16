@@ -104,7 +104,12 @@ export async function runPipeline(opts: RunPipelineOptions): Promise<RunPipeline
       log('Skipping vision adjudication — no ANTHROPIC_API_KEY set.');
     } else {
       try {
-        await adjudicateIssues(report, { model: opts.config.vision.model, outDir: opts.outDir, log });
+        await adjudicateIssues(report, {
+          model: opts.config.vision.model,
+          outDir: opts.outDir,
+          apiKey: opts.anthropicKey,
+          log,
+        });
       } catch (err) {
         if (err instanceof VisionError) log(`Vision adjudication skipped: ${err.message}`);
         else throw err;

@@ -319,13 +319,31 @@
   @media (max-width: 720px) { .team-grid { grid-template-columns: repeat(2, 1fr); } }
   @media (max-width: 440px) { .team-grid { grid-template-columns: 1fr; } }
 
-  /* ---- Figma connect banner ---- */
-  .figma-banner { max-width: 720px; margin: 28px auto 0; display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; padding: 13px 18px; font-size: 14px; color: var(--ink); }
-  .figma-banner .btn-primary { padding: 9px 16px; font-size: 13.5px; }
-  .figma-banner.connected { background: #e7f6ec; border-color: #bbe6c9; color: #15803d; font-weight: 600; }
-  :root[data-theme="dark"] .figma-banner.connected { background: rgba(21,128,61,.16); border-color: rgba(21,128,61,.42); color: #7ee2a8; }
-  .figma-banner .link { color: var(--muted); text-decoration: underline; font-size: 13px; }
-  .figma-banner .link:hover { color: var(--ink); }
+  /* ---- Connections panel (per-user Figma + Anthropic credentials) ---- */
+  .conn-panel { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 22px 0 28px; }
+  @media (max-width: 720px) { .conn-panel { grid-template-columns: 1fr; } }
+  .conn-card { background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; font-size: 14px; color: var(--ink); }
+  .conn-card.connected { background: #e7f6ec; border-color: #bbe6c9; }
+  :root[data-theme="dark"] .conn-card.connected { background: rgba(21,128,61,.14); border-color: rgba(21,128,61,.4); }
+  .conn-head { display: flex; align-items: center; gap: 8px; font-size: 14.5px; }
+  .conn-head .conn-meta { color: var(--muted); font-weight: 400; font-size: 12.5px; margin-left: auto; }
+  .conn-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+  .conn-dot.ok { background: #15803d; }
+  .conn-sub { color: var(--muted); font-size: 13px; margin: 8px 0 12px; line-height: 1.5; }
+  .conn-card.connected .conn-sub { color: #15803d; }
+  :root[data-theme="dark"] .conn-card.connected .conn-sub { color: #7ee2a8; }
+  .conn-card .btn-primary { padding: 9px 16px; font-size: 13.5px; }
+  .conn-card .link { color: var(--muted); text-decoration: underline; font-size: 13px; background: none; border: none; cursor: pointer; padding: 0; font: inherit; }
+  .conn-card .link:hover { color: var(--ink); }
+  .conn-card .link:disabled { opacity: .5; cursor: default; }
+  .conn-form { margin-top: 10px; }
+  .conn-label { display: block; font-size: 12.5px; font-weight: 600; margin-bottom: 6px; }
+  .conn-hint { color: var(--muted); font-size: 12px; margin: 6px 0 0; }
+  .conn-hint code { font-size: 11.5px; background: var(--surface); padding: 1px 4px; border-radius: 4px; }
+  .conn-row { display: flex; gap: 8px; }
+  .conn-row input { flex: 1; min-width: 0; padding: 10px 12px; border: 1px solid var(--input-border); border-radius: 9px; background: var(--input-bg); color: var(--ink); font: inherit; font-size: 13.5px; }
+  .conn-row input:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(23,99,230,.15); }
+  .conn-err { color: var(--alert-fg); background: var(--alert-bg); border: 1px solid var(--alert-border); border-radius: 8px; padding: 8px 11px; font-size: 12.5px; margin: 8px 0 0; }
 
   /* ---- Auth pages ---- */
   .auth-page { min-height: calc(100vh - 64px); display: grid; place-items: center; padding: 48px 24px; background: var(--hero-grad); }

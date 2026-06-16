@@ -28,7 +28,7 @@ model User {
 
   refreshTokens      RefreshToken[]
   verificationTokens VerificationToken[]
-  figmaConnection    FigmaConnection?
+  credentials        ApiCredential[]
   qaJobs             QAJob[]
 
   @@index([email])
@@ -63,17 +63,24 @@ model VerificationToken {
   @@index([userId, type])
 }
 
-// A user's connected Figma account (OAuth). Tokens stored encrypted at rest.
-model FigmaConnection {
+// A user's per-provider API credential (Figma / Anthropic), encrypted at rest.
+// One row per (user, provider). `secretEnc` is the access token / api key;
+// `refreshTokenEnc`/`expiresAt` apply to Figma OAuth. Never returned to clients.
+model ApiCredential {
   id              String    @id @default(cuid())
-  userId          String    @unique
+  userId          String
   user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  accessTokenEnc  String
+  provider        String // 'figma' | 'anthropic'
+  type            String // 'oauth' | 'pat'
+  secretEnc       String
   refreshTokenEnc String?
   expiresAt       DateTime?
-  figmaUserId     String?
+  accountLabel    String? // e.g. Figma user id, or "Personal token"
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+
+  @@unique([userId, provider])
+  @@index([userId])
 }
 
 model QAJob {
@@ -86,6 +93,7 @@ model QAJob {
   pdf        Boolean   @default(true)
   viewport   Int? // null = auto
   status     String    @default("PENDING") // PENDING | RUNNING | COMPLETED | FAILED
+  progress   String? // last streamed stage/message (persisted for reconnects)
   error      String?
   createdAt  DateTime  @default(now())
   startedAt  DateTime?

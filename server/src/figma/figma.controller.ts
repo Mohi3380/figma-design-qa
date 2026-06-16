@@ -1,8 +1,6 @@
 import {
   Controller,
   Get,
-  HttpCode,
-  Post,
   Req,
   Res,
   ServiceUnavailableException,
@@ -22,11 +20,6 @@ export class FigmaController {
     private readonly figma: FigmaService,
     private readonly config: ConfigService,
   ) {}
-
-  @Get('status')
-  status(@CurrentUser() user: AuthUser) {
-    return this.figma.getStatus(user.id);
-  }
 
   @Get('login')
   login(@Res() res: Response) {
@@ -61,12 +54,5 @@ export class FigmaController {
     } catch {
       return res.redirect(`${appUrl}/dashboard?figma=error`);
     }
-  }
-
-  @Post('disconnect')
-  @HttpCode(200)
-  async disconnect(@CurrentUser() user: AuthUser) {
-    await this.figma.disconnect(user.id);
-    return { ok: true };
   }
 }
