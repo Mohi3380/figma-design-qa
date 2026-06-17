@@ -54,8 +54,10 @@ export const viewport: Viewport = {
   themeColor: '#1763E6',
 };
 
-/* Apply saved/system theme before first paint to avoid a flash. */
-const THEME_INIT = `(function(){try{var s=localStorage.getItem('kl-theme');var d=s?s==='dark':(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches);if(d)document.documentElement.setAttribute('data-theme','dark');}catch(e){}})();`;
+/* Before first paint: apply saved/system theme (no flash) and mark that JS is
+ * active, so scroll-reveal animations only hide content when they can reveal it
+ * (no-JS users and crawlers see everything). */
+const THEME_INIT = `(function(){try{document.documentElement.classList.add('js');var s=localStorage.getItem('kl-theme');var d=s?s==='dark':(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches);if(d)document.documentElement.setAttribute('data-theme','dark');}catch(e){}})();`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
