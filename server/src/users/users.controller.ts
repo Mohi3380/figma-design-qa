@@ -68,6 +68,10 @@ export class UsersController {
     const safe = path.basename(filename); // prevent path traversal
     const fp = path.join(UPLOAD_DIR, safe);
     if (!fs.existsSync(fp)) throw new NotFoundException();
+    // helmet() sets CORP: same-origin globally, which blocks the frontend
+    // (different origin in dev) from loading this <img>. Relax it for avatars
+    // only — they're public, non-sensitive static images.
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     res.sendFile(fp);
   }
 }
