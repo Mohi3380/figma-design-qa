@@ -27,6 +27,11 @@ interface Summary {
   recent: RecentRun[];
 }
 
+interface Conn {
+  figma: { connected: boolean };
+  anthropic: { connected: boolean };
+}
+
 function timeAgo(iso: string): string {
   const s = Math.round((Date.now() - new Date(iso).getTime()) / 1000);
   if (s < 60) return 'just now';
@@ -76,6 +81,7 @@ function Kpi({ label, value, sub, small }: { label: string; value: React.ReactNo
 export default function DashboardPage() {
   const { user } = useAuth();
   const [data, setData] = useState<Summary | null>(null);
+  const [conn, setConn] = useState<Conn | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -83,7 +89,12 @@ export default function DashboardPage() {
     setLoading(true);
     setError('');
     try {
-      setData(await api.get<Summary>('/dashboard/summary'));
+      const [summary, connections] = await Promise.all([
+        api.get<Summary>('/dashboard/summary'),
+        api.get<Conn>('/credentials/status').catch(() => null),
+      ]);
+      setData(summary);
+      setConn(connections);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load dashboard.');
     } finally {
@@ -115,45 +126,80 @@ export default function DashboardPage() {
         <div className="empty-state" style={{ color: 'var(--alert-fg)' }}>Couldn&apos;t load your dashboard — {error}</div>
       )}
 
-      {!loading && !error && data && data.kpis.totalRuns === 0 && (
-        <div className="empty-state">
-          No runs yet — <Link href="/start-qa" style={{ color: 'var(--blue)', fontWeight: 600 }}>start your first QA</Link>.
-        </div>
-      )}
-
-      {!loading && !error && data && data.kpis.totalRuns > 0 && (
+      {!loading && !error && data && (
         <>
           <div className="kpi-grid">
             <Kpi label="Total QA runs" value={data.kpis.totalRuns} />
             <Kpi label="Check pass rate" value={data.kpis.passRate === null ? '—' : `${data.kpis.passRate}%`} />
             <Kpi label="Runs this week" value={data.kpis.runsThisWeek} />
-            <Kpi
-              label="Most recent"
-              small
-              value={data.kpis.mostRecent ? data.kpis.mostRecent.status.toLowerCase() : '—'}
-              sub={data.kpis.mostRecent ? timeAgo(data.kpis.mostRecent.createdAt) : undefined}
-            />
+            {data.kpis.totalRuns > 0 ? (
+              <Kpi
+                label="Most recent"
+                small
+                value={data.kpis.mostRecent ? data.kpis.mostRecent.status.toLowerCase() : '—'}
+                sub={data.kpis.mostRecent ? timeAgo(data.kpis.mostRecent.createdAt) : undefined}
+              />
+            ) : (
+              <Kpi
+                label="Integrations"
+                value={`${(conn?.figma.connected ? 1 : 0) + (conn?.anthropic.connected ? 1 : 0)}/2`}
+                sub="Figma · Anthropic"
+              />
+            )}
           </div>
 
-          <div className="charts-grid">
-            <div className="chart-card">
-              <h3>Runs over time</h3>
-              <p className="c-sub">Last 30 days · completed vs failed</p>
-              <RunsBarChart series={data.series} />
+          {data.kpis.totalRuns === 0 ? (
+            <div className="onboard">
+              <h2>Run your first Design QA</h2>
+              <p>Compare a Figma frame against your live app and get a severity-graded report in minutes.</p>
+              <ol className="onboard-steps">
+                <li className={conn?.figma.connected ? 'done' : ''}>
+                  <span className="ob-n">{conn?.figma.connected ? '✓' : '1'}</span>
+                  <div>
+                    <b>Connect Figma</b>
+                    <span>{conn?.figma.connected ? 'Connected — runs use your own files' : 'OAuth in one click, or paste a personal token'}</span>
+                  </div>
+                </li>
+                <li className={conn?.anthropic.connected ? 'done' : ''}>
+                  <span className="ob-n">{conn?.anthropic.connected ? '✓' : '2'}</span>
+                  <div>
+                    <b>Add an Anthropic key</b>
+                    <span>{conn?.anthropic.connected ? 'Vision adjudication enabled' : 'Optional — enables Claude vision adjudication'}</span>
+                  </div>
+                </li>
+                <li>
+                  <span className="ob-n">3</span>
+                  <div>
+                    <b>Paste two URLs &amp; run</b>
+                    <span>Your Figma frame + your live app — progress streams live</span>
+                  </div>
+                </li>
+              </ol>
+              <Link className="btn btn-primary" href="/start-qa">Start your first QA →</Link>
             </div>
-            <div className="chart-card">
-              <h3>Issues by severity</h3>
-              <p className="c-sub">Across completed runs</p>
-              <SeverityPie severity={data.severity} />
-            </div>
-          </div>
+          ) : (
+            <>
+              <div className="charts-grid">
+                <div className="chart-card">
+                  <h3>Runs over time</h3>
+                  <p className="c-sub">Last 30 days · completed vs failed</p>
+                  <RunsBarChart series={data.series} />
+                </div>
+                <div className="chart-card">
+                  <h3>Issues by severity</h3>
+                  <p className="c-sub">Across completed runs</p>
+                  <SeverityPie severity={data.severity} />
+                </div>
+              </div>
 
-          <h2 className="title" style={{ textAlign: 'left' }}>Recent runs</h2>
-          <div className="runs">
-            {data.recent.map((r) => (
-              <RunRow key={r.id} run={r} />
-            ))}
-          </div>
+              <h2 className="title" style={{ textAlign: 'left' }}>Recent runs</h2>
+              <div className="runs">
+                {data.recent.map((r) => (
+                  <RunRow key={r.id} run={r} />
+                ))}
+              </div>
+            </>
+          )}
         </>
       )}
     </div>

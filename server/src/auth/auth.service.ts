@@ -13,6 +13,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
 import { MailService } from '../mail/mail.service';
 import { hashToken, randomToken } from '../common/crypto.util';
+import { isAdminEmail } from './admin.util';
 
 export interface TokenMeta {
   userAgent?: string;
@@ -45,13 +46,27 @@ export class AuthService {
     return this.config.get<string>('APP_BASE_URL') ?? 'http://localhost:4200';
   }
 
+  /** Promote a user to ADMIN if their email is in the ADMIN_EMAILS allowlist.
+   * Only ever promotes — never demotes — so admin-granted roles persist. */
+  private async maybePromote(user: User): Promise<User> {
+    if (user.role === 'ADMIN') return user;
+    if (!isAdminEmail(this.config, user.email)) return user;
+    return this.prisma.user.update({ where: { id: user.id }, data: { role: 'ADMIN' } });
+  }
+
+  private assertNotDisabled(user: User): void {
+    if (user.disabledAt) {
+      throw new UnauthorizedException('This account has been disabled. Contact an administrator.');
+    }
+  }
+
   async signup(email: string, password: string, name?: string): Promise<User> {
     const existing = await this.users.findByEmail(email);
     if (existing) throw new ConflictException('An account with that email already exists.');
     const passwordHash = await bcrypt.hash(password, 10);
     const user = await this.users.create({ email, name, passwordHash });
     await this.sendVerificationEmail(user);
-    return user;
+    return this.maybePromote(user);
   }
 
   async validateLogin(email: string, password: string): Promise<User> {
@@ -63,7 +78,8 @@ export class AuthService {
     }
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) throw new UnauthorizedException('Invalid email or password.');
-    return user;
+    this.assertNotDisabled(user);
+    return this.maybePromote(user);
   }
 
   async issueTokens(user: User, meta: TokenMeta = {}): Promise<{ accessToken: string; refreshToken: string }> {
@@ -104,6 +120,7 @@ export class AuthService {
     await this.prisma.refreshToken.update({ where: { id: stored.id }, data: { revokedAt: new Date() } });
     const user = await this.users.findById(payload.sub);
     if (!user) throw new UnauthorizedException('User no longer exists.');
+    this.assertNotDisabled(user);
     const tokens = await this.issueTokens(user, meta);
     return { user, ...tokens };
   }
@@ -204,20 +221,26 @@ export class AuthService {
     avatarUrl?: string;
   }): Promise<User> {
     const byGoogle = await this.users.findByGoogleId(profile.googleId);
-    if (byGoogle) return byGoogle;
+    if (byGoogle) {
+      this.assertNotDisabled(byGoogle);
+      return this.maybePromote(byGoogle);
+    }
     const byEmail = await this.users.findByEmail(profile.email);
     if (byEmail) {
-      return this.prisma.user.update({
+      this.assertNotDisabled(byEmail);
+      const linked = await this.prisma.user.update({
         where: { id: byEmail.id },
         data: { googleId: profile.googleId, emailVerified: true, avatarUrl: byEmail.avatarUrl ?? profile.avatarUrl },
       });
+      return this.maybePromote(linked);
     }
-    return this.users.create({
+    const created = await this.users.create({
       email: profile.email,
       name: profile.name,
       googleId: profile.googleId,
       emailVerified: true,
       avatarUrl: profile.avatarUrl,
     });
+    return this.maybePromote(created);
   }
 }

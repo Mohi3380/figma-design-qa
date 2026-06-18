@@ -10,6 +10,7 @@ export interface User {
   emailVerified: boolean;
   avatarUrl?: string | null;
   hasPassword?: boolean;
+  role?: 'USER' | 'ADMIN';
 }
 
 interface AuthContextValue {

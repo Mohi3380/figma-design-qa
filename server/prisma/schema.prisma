@@ -16,15 +16,17 @@ datasource db {
 }
 
 model User {
-  id            String   @id @default(cuid())
-  email         String   @unique
+  id            String    @id @default(cuid())
+  email         String    @unique
   name          String?
   passwordHash  String? // null for Google-only accounts
-  googleId      String?  @unique
-  emailVerified Boolean  @default(false)
+  googleId      String?   @unique
+  emailVerified Boolean   @default(false)
   avatarUrl     String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  role          String    @default("USER") // USER | ADMIN
+  disabledAt    DateTime? // set => account is disabled (cannot log in)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   refreshTokens      RefreshToken[]
   verificationTokens VerificationToken[]
