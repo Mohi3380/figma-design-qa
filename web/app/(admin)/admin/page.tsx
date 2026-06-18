@@ -83,7 +83,7 @@ export default function AdminOverview() {
   return (
     <div className="app-page">
       <div className="dash-head">
-        <h1>Admin overview</h1>
+        <h1>Dashboard</h1>
         <Link className="btn btn-ghost" href="/admin/users">Manage users →</Link>
       </div>
       <p className="dash-sub">Platform health, usage and growth at a glance.</p>

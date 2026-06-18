@@ -133,7 +133,7 @@ function UsersInner() {
   return (
     <div className="app-page">
       <div className="dash-head">
-        <h1>Users</h1>
+        <h1>User Management</h1>
         <button type="button" className="btn btn-ghost" onClick={exportCsv}>Export CSV</button>
       </div>
       <p className="dash-sub">{data ? `${data.total} user${data.total === 1 ? '' : 's'}` : 'Loading…'}</p>

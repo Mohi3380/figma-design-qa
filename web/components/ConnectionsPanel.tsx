@@ -14,6 +14,22 @@ const EMPTY: Status = {
   anthropic: { connected: false },
 };
 
+const FigmaLogo = (
+  <svg width="17" height="25" viewBox="0 0 38 57" aria-hidden="true">
+    <path fill="#1abcfe" d="M19 28.5a9.5 9.5 0 1 1 19 0 9.5 9.5 0 0 1-19 0z" />
+    <path fill="#0acf83" d="M0 47.5A9.5 9.5 0 0 1 9.5 38H19v9.5a9.5 9.5 0 1 1-19 0z" />
+    <path fill="#ff7262" d="M19 0v19h9.5a9.5 9.5 0 1 0 0-19H19z" />
+    <path fill="#f24e1e" d="M0 9.5A9.5 9.5 0 0 0 9.5 19H19V0H9.5A9.5 9.5 0 0 0 0 9.5z" />
+    <path fill="#a259ff" d="M0 28.5A9.5 9.5 0 0 0 9.5 38H19V19H9.5A9.5 9.5 0 0 0 0 28.5z" />
+  </svg>
+);
+
+const AnthropicLogo = (
+  <svg width="20" height="20" viewBox="0 0 46 32" fill="#fff" aria-hidden="true">
+    <path d="M32.7 0H26l11.9 32H44L32.7 0zM13.3 0 1.4 32h6.9l2.4-6.6h12.5l2.4 6.6h6.9L20.6 0h-7.3zm-.3 19.7L17 8.9l4 10.8h-8z" />
+  </svg>
+);
+
 export default function ConnectionsPanel() {
   const [s, setS] = useState<Status | null>(null);
 
@@ -30,9 +46,28 @@ export default function ConnectionsPanel() {
   if (!s) return null;
 
   return (
-    <div className="conn-panel">
-      <FigmaCard status={s} onChange={reload} />
-      <AnthropicCard status={s} onChange={reload} />
+    <div className="conn-sections">
+      <section className="conn-section">
+        <div className="conn-sec-head">
+          <span className="brand-ic brand-figma">{FigmaLogo}</span>
+          <div>
+            <h2>Figma</h2>
+            <span className="conn-sec-sub">Where your design comes from</span>
+          </div>
+        </div>
+        <FigmaCard status={s} onChange={reload} />
+      </section>
+
+      <section className="conn-section">
+        <div className="conn-sec-head">
+          <span className="brand-ic brand-anthropic">{AnthropicLogo}</span>
+          <div>
+            <h2>Anthropic</h2>
+            <span className="conn-sec-sub">Powers Claude vision adjudication</span>
+          </div>
+        </div>
+        <AnthropicCard status={s} onChange={reload} />
+      </section>
     </div>
   );
 }

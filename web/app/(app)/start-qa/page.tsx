@@ -1,7 +1,7 @@
 'use client';
 
+import Link from 'next/link';
 import QAForm from '@/components/QAForm';
-import ConnectionsPanel from '@/components/ConnectionsPanel';
 
 export default function StartQaPage() {
   return (
@@ -11,8 +11,8 @@ export default function StartQaPage() {
       </div>
       <p className="dash-sub">
         Paste a Figma frame URL and your live app URL. Progress streams live and the report renders below.
+        Make sure your <Link href="/integrations" style={{ color: 'var(--blue)', fontWeight: 600 }}>integrations</Link> are connected first.
       </p>
-      <ConnectionsPanel />
       <QAForm />
     </div>
   );

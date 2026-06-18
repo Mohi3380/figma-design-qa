@@ -68,12 +68,47 @@ function RunRow({ run }: { run: RecentRun }) {
   );
 }
 
-function Kpi({ label, value, sub, small }: { label: string; value: React.ReactNode; sub?: string; small?: boolean }) {
+function Icon({ d }: { d: string }) {
   return (
-    <div className="kpi-card">
-      <div className="k-label">{label}</div>
-      <div className={`k-value${small ? ' k-sm' : ''}`}>{value}</div>
-      {sub && <div className="k-sub">{sub}</div>}
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d={d} />
+    </svg>
+  );
+}
+
+function Kpi({
+  label,
+  value,
+  sub,
+  small,
+  icon,
+  accent = 'blue',
+  footer,
+}: {
+  label: string;
+  value: React.ReactNode;
+  sub?: string;
+  small?: boolean;
+  icon?: React.ReactNode;
+  accent?: 'blue' | 'green' | 'violet' | 'amber';
+  footer?: { label: string; href: string };
+}) {
+  return (
+    <div className={`kpi-card kpi-${accent}`}>
+      <div className="kpi-body">
+        {icon && <span className="k-ic">{icon}</span>}
+        <div className="kpi-text">
+          <span className="k-label">{label}</span>
+          <span className={`k-value${small ? ' k-sm' : ''}`}>{value}</span>
+          {sub && <span className="k-sub">{sub}</span>}
+        </div>
+      </div>
+      {footer && (
+        <Link className="kpi-foot" href={footer.href}>
+          {footer.label}
+          <span aria-hidden>→</span>
+        </Link>
+      )}
     </div>
   );
 }
@@ -110,7 +145,6 @@ export default function DashboardPage() {
     <div className="app-page">
       <div className="dash-head">
         <h1>Welcome{user?.name ? `, ${user.name}` : ''}</h1>
-        <Link className="btn btn-primary" href="/start-qa">+ New QA</Link>
       </div>
       <p className="dash-sub">Your Design QA activity at a glance.</p>
 
@@ -129,54 +163,67 @@ export default function DashboardPage() {
       {!loading && !error && data && (
         <>
           <div className="kpi-grid">
-            <Kpi label="Total QA runs" value={data.kpis.totalRuns} />
-            <Kpi label="Check pass rate" value={data.kpis.passRate === null ? '—' : `${data.kpis.passRate}%`} />
-            <Kpi label="Runs this week" value={data.kpis.runsThisWeek} />
+            <Kpi label="Total QA runs" value={data.kpis.totalRuns} accent="blue" icon={<Icon d="M8 5v14l11-7z" />} footer={{ label: 'View QA runs', href: '/runs' }} />
+            <Kpi label="Check pass rate" value={data.kpis.passRate === null ? '—' : `${data.kpis.passRate}%`} accent="green" icon={<Icon d="M20 6 9 17l-5-5" />} footer={{ label: 'View QA runs', href: '/runs' }} />
+            <Kpi
+              label="Issues found"
+              value={Object.values(data.severity ?? {}).reduce((a, b) => a + (b ?? 0), 0)}
+              accent="amber"
+              icon={<Icon d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z M12 9v4 M12 17h.01" />}
+              footer={{ label: 'View QA runs', href: '/runs' }}
+            />
             {data.kpis.totalRuns > 0 ? (
               <Kpi
                 label="Most recent"
                 small
+                accent="violet"
+                icon={<Icon d="M12 8v4l3 2M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z" />}
                 value={data.kpis.mostRecent ? data.kpis.mostRecent.status.toLowerCase() : '—'}
                 sub={data.kpis.mostRecent ? timeAgo(data.kpis.mostRecent.createdAt) : undefined}
+                footer={{ label: 'View QA runs', href: '/runs' }}
               />
             ) : (
               <Kpi
                 label="Integrations"
+                accent="violet"
+                icon={<Icon d="M9 2v6M15 2v6M7 8h10v4a5 5 0 0 1-10 0zM12 17v5" />}
                 value={`${(conn?.figma.connected ? 1 : 0) + (conn?.anthropic.connected ? 1 : 0)}/2`}
                 sub="Figma · Anthropic"
+                footer={{ label: 'Manage', href: '/integrations' }}
               />
             )}
           </div>
 
           {data.kpis.totalRuns === 0 ? (
-            <div className="onboard">
-              <h2>Run your first Design QA</h2>
-              <p>Compare a Figma frame against your live app and get a severity-graded report in minutes.</p>
-              <ol className="onboard-steps">
-                <li className={conn?.figma.connected ? 'done' : ''}>
-                  <span className="ob-n">{conn?.figma.connected ? '✓' : '1'}</span>
-                  <div>
-                    <b>Connect Figma</b>
-                    <span>{conn?.figma.connected ? 'Connected — runs use your own files' : 'OAuth in one click, or paste a personal token'}</span>
+            <>
+              <p className="dash-cta-line">
+                No runs yet — <Link href="/start-qa">start your first QA →</Link> Here&apos;s what your report will look like.
+              </p>
+              <div className="dash-getstarted">
+                <div className="chart-card donut-card">
+                  <h3>Checks passed</h3>
+                  <p className="c-sub">Your pass rate appears here after your first run</p>
+                  <div className="donut-feature">
+                    <div className="rp-ring big empty"><span>—</span></div>
                   </div>
-                </li>
-                <li className={conn?.anthropic.connected ? 'done' : ''}>
-                  <span className="ob-n">{conn?.anthropic.connected ? '✓' : '2'}</span>
-                  <div>
-                    <b>Add an Anthropic key</b>
-                    <span>{conn?.anthropic.connected ? 'Vision adjudication enabled' : 'Optional — enables Claude vision adjudication'}</span>
+                </div>
+
+                <div className="chart-card sev-card" aria-hidden="true">
+                  <h3>Issues by severity</h3>
+                  <p className="c-sub">Your severity breakdown appears here after your first run</p>
+                  <div className="rp-sev">
+                    {['Critical', 'High', 'Medium', 'Low'].map((k) => (
+                      <div className="rp-row" key={k}>
+                        <span className="rp-k">{k}</span>
+                        <span className="rp-bar" />
+                        <span className="rp-n cell-faint">—</span>
+                      </div>
+                    ))}
                   </div>
-                </li>
-                <li>
-                  <span className="ob-n">3</span>
-                  <div>
-                    <b>Paste two URLs &amp; run</b>
-                    <span>Your Figma frame + your live app — progress streams live</span>
-                  </div>
-                </li>
-              </ol>
-              <Link className="btn btn-primary" href="/start-qa">Start your first QA →</Link>
-            </div>
+                  <div className="rp-foot">Severity-graded · design / live / diff evidence · PDF &amp; HTML</div>
+                </div>
+              </div>
+            </>
           ) : (
             <>
               <div className="charts-grid">

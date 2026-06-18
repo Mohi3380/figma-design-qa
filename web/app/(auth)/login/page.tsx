@@ -26,8 +26,8 @@ function LoginInner() {
     setErr('');
     setBusy(true);
     try {
-      await login(email, password);
-      router.push('/dashboard');
+      const u = await login(email, password);
+      router.push(u.role === 'ADMIN' ? '/admin' : '/dashboard');
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Login failed.');
     } finally {
