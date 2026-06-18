@@ -50,12 +50,84 @@ function timeAgo(iso: string): string {
   return `${Math.round(h / 24)}d ago`;
 }
 
-function Kpi({ label, value, sub }: { label: string; value: React.ReactNode; sub?: string }) {
+function Icon({ d }: { d: string }) {
   return (
-    <div className="kpi-card">
-      <div className="k-label">{label}</div>
-      <div className="k-value">{value}</div>
-      {sub && <div className="k-sub">{sub}</div>}
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d={d} />
+    </svg>
+  );
+}
+
+function Kpi({
+  label,
+  value,
+  sub,
+  icon,
+  accent = 'blue',
+}: {
+  label: string;
+  value: React.ReactNode;
+  sub?: string;
+  icon?: React.ReactNode;
+  accent?: 'blue' | 'green' | 'violet' | 'amber';
+}) {
+  return (
+    <div className={`kpi-card kpi-${accent}`}>
+      <div className="kpi-body">
+        {icon && <span className="k-ic">{icon}</span>}
+        <div className="kpi-text">
+          <span className="k-label">{label}</span>
+          <span className="k-value">{value}</span>
+          {sub && <span className="k-sub">{sub}</span>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** A trend chart with its own time-range filter (fetches just its series). */
+function TrendCard({ kind }: { kind: 'signups' | 'runs' }) {
+  const [days, setDays] = useState(30);
+  const [series, setSeries] = useState<Stats['signupSeries'] | Stats['runSeries'] | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    api
+      .get<Stats>(`/admin/stats?days=${days}`)
+      .then((s) => {
+        if (alive) setSeries(kind === 'signups' ? s.signupSeries : s.runSeries);
+      })
+      .catch(() => {
+        if (alive) setSeries([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [days, kind]);
+
+  const title = kind === 'signups' ? 'New signups' : 'QA runs over time';
+  const sub = kind === 'signups' ? `Last ${days} days` : `Last ${days} days · completed vs failed`;
+
+  return (
+    <div className="chart-card">
+      <div className="chart-head">
+        <div>
+          <h3>{title}</h3>
+          <p className="c-sub">{sub}</p>
+        </div>
+        <select className="range-select" value={days} onChange={(e) => setDays(Number(e.target.value))} aria-label="Time range">
+          <option value={7}>7 days</option>
+          <option value={30}>30 days</option>
+          <option value={90}>90 days</option>
+        </select>
+      </div>
+      {series === null ? (
+        <div className="chart-empty">Loading…</div>
+      ) : kind === 'signups' ? (
+        <SignupsArea data={series as Stats['signupSeries']} />
+      ) : (
+        <RunsStacked data={series as Stats['runSeries']} />
+      )}
     </div>
   );
 }
@@ -101,27 +173,21 @@ export default function AdminOverview() {
       {stats && (
         <>
           <div className="kpi-grid kpi-grid-4">
-            <Kpi label="Total users" value={stats.kpis.totalUsers} sub={`${stats.kpis.newUsers30d} new in 30d`} />
-            <Kpi label="Active (30d)" value={stats.kpis.activeUsers30d} sub="ran a QA recently" />
-            <Kpi label="Email verified" value={`${stats.kpis.verifiedPct}%`} />
-            <Kpi label="Admins" value={stats.kpis.admins} sub={stats.kpis.disabled ? `${stats.kpis.disabled} disabled` : undefined} />
-            <Kpi label="Total QA runs" value={stats.kpis.totalRuns} sub={`${stats.kpis.runs7d} in 7d`} />
-            <Kpi label="Success rate" value={stats.kpis.successRate === null ? '—' : `${stats.kpis.successRate}%`} sub={`${stats.kpis.completed}✓ / ${stats.kpis.failed}✕`} />
-            <Kpi label="Figma connected" value={stats.kpis.figmaConnected} />
-            <Kpi label="Anthropic key" value={stats.kpis.anthropicConnected} />
+            <Kpi label="Total users" value={stats.kpis.totalUsers} sub={`${stats.kpis.newUsers30d} new in 30d`} accent="blue" icon={<Icon d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M23 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8" />} />
+            <Kpi label="Active (30d)" value={stats.kpis.activeUsers30d} sub="ran a QA recently" accent="green" icon={<Icon d="M22 12h-4l-3 9L9 3l-3 9H2" />} />
+            <Kpi label="Email verified" value={`${stats.kpis.verifiedPct}%`} accent="violet" icon={<Icon d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM22 7l-10 6L2 7" />} />
+            <Kpi label="Admins" value={stats.kpis.admins} sub={stats.kpis.disabled ? `${stats.kpis.disabled} disabled` : undefined} accent="amber" icon={<Icon d="M12 2 4 6v6c0 5 3.5 8 8 10 4.5-2 8-5 8-10V6z" />} />
+            <Kpi label="Total QA runs" value={stats.kpis.totalRuns} sub={`${stats.kpis.runs7d} in 7d`} accent="blue" icon={<Icon d="M8 5v14l11-7z" />} />
+            <Kpi label="Success rate" value={stats.kpis.successRate === null ? '—' : `${stats.kpis.successRate}%`} sub={`${stats.kpis.completed}✓ / ${stats.kpis.failed}✕`} accent="green" icon={<Icon d="M20 6 9 17l-5-5" />} />
+            <Kpi label="Figma connected" value={stats.kpis.figmaConnected} accent="violet" icon={<Icon d="M9 2v6M15 2v6M7 8h10v4a5 5 0 0 1-10 0zM12 17v5" />} />
+            <Kpi label="Anthropic key" value={stats.kpis.anthropicConnected} accent="amber" icon={<Icon d="M21 2l-2 2m-7.6 7.6a5 5 0 1 0-2 2L13 13l2 2 2-2 2 2 2.5-2.5L17 9z" />} />
           </div>
 
           <div className="admin-charts">
-            <div className="chart-card">
-              <h3>New signups</h3>
-              <p className="c-sub">Last 30 days</p>
-              <SignupsArea data={stats.signupSeries} />
-            </div>
-            <div className="chart-card">
-              <h3>QA runs over time</h3>
-              <p className="c-sub">Last 30 days · completed vs failed</p>
-              <RunsStacked data={stats.runSeries} />
-            </div>
+            <TrendCard kind="signups" />
+            <TrendCard kind="runs" />
+          </div>
+          <div className="admin-charts">
             <div className="chart-card">
               <h3>Runs by status</h3>
               <p className="c-sub">All time</p>

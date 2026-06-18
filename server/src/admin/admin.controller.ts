@@ -25,8 +25,8 @@ export class AdminController {
   constructor(private readonly admin: AdminService) {}
 
   @Get('stats')
-  stats() {
-    return this.admin.stats();
+  stats(@Query('days') days?: string) {
+    return this.admin.stats(days);
   }
 
   @Get('activity')

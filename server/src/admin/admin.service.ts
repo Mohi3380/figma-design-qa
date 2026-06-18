@@ -217,7 +217,8 @@ export class AdminService {
 
   // ---- stats / KPIs ------------------------------------------------------
 
-  async stats() {
+  async stats(daysParam?: string) {
+    const win = [7, 30, 90].includes(Number(daysParam)) ? Number(daysParam) : 30;
     const now = Date.now();
     const d7 = now - 7 * DAY;
     const d30 = now - 30 * DAY;
@@ -251,10 +252,10 @@ export class AdminService {
       }
     }
 
-    // 30-day series for signups + runs
+    // Time series for signups + runs over the selected window (7/30/90 days).
     const signupsByDay = new Map<string, number>();
     const runsByDay = new Map<string, { completed: number; failed: number; total: number }>();
-    for (let i = 29; i >= 0; i--) {
+    for (let i = win - 1; i >= 0; i--) {
       const key = dayKey(new Date(now - i * DAY));
       signupsByDay.set(key, 0);
       runsByDay.set(key, { completed: 0, failed: 0, total: 0 });
@@ -272,6 +273,7 @@ export class AdminService {
     }
 
     return {
+      days: win,
       kpis: {
         totalUsers: users.length,
         newUsers7d: users.filter((u) => u.createdAt.getTime() >= d7).length,

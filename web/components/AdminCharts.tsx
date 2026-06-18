@@ -28,15 +28,15 @@ export function SignupsArea({ data }: { data: { date: string; count: number }[] 
   const d = data.map((x) => ({ ...x, label: x.date.slice(5) }));
   return (
     <ResponsiveContainer width="100%" height={240}>
-      <AreaChart data={d} margin={{ top: 6, right: 8, left: -18, bottom: 0 }}>
+      <AreaChart data={d} margin={{ top: 8, right: 14, left: -6, bottom: 6 }}>
         <defs>
           <linearGradient id="signupFill" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="#1763E6" stopOpacity={0.35} />
             <stop offset="100%" stopColor="#1763E6" stopOpacity={0.02} />
           </linearGradient>
         </defs>
-        <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#94a3b8' }} interval={4} axisLine={false} tickLine={false} />
-        <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={28} />
+        <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#94a3b8' }} interval="preserveStartEnd" minTickGap={28} tickMargin={8} padding={{ left: 12, right: 12 }} axisLine={false} tickLine={false} />
+        <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={34} />
         <Tooltip contentStyle={TOOLTIP} />
         <Area type="monotone" dataKey="count" name="Signups" stroke="#1763E6" strokeWidth={2} fill="url(#signupFill)" />
       </AreaChart>
@@ -48,9 +48,9 @@ export function RunsStacked({ data }: { data: { date: string; completed: number;
   const d = data.map((x) => ({ ...x, label: x.date.slice(5) }));
   return (
     <ResponsiveContainer width="100%" height={240}>
-      <BarChart data={d} margin={{ top: 6, right: 8, left: -18, bottom: 0 }}>
-        <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#94a3b8' }} interval={4} axisLine={false} tickLine={false} />
-        <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={28} />
+      <BarChart data={d} margin={{ top: 8, right: 14, left: -6, bottom: 6 }}>
+        <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#94a3b8' }} interval="preserveStartEnd" minTickGap={28} tickMargin={8} axisLine={false} tickLine={false} />
+        <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={34} />
         <Tooltip contentStyle={TOOLTIP} cursor={{ fill: 'rgba(148,163,184,.15)' }} />
         <Bar dataKey="completed" stackId="a" fill="#15803d" name="Completed" />
         <Bar dataKey="failed" stackId="a" fill="#dc2626" name="Failed" radius={[3, 3, 0, 0]} />

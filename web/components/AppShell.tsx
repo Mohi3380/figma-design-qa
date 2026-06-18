@@ -97,7 +97,6 @@ export default function AppShell({
           <button className="app-burger" type="button" aria-label="Menu" onClick={() => setNavOpen((v) => !v)}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M3 12h18M3 18h18" /></svg>
           </button>
-          {isAdminArea && <span className="app-area-tag">Admin panel</span>}
           <div style={{ flex: 1 }} />
           <ThemeToggle />
           {user && (
