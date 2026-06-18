@@ -6,6 +6,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { decryptSecret, encryptSecret } from '../common/crypto.util';
+import { getSecret } from '../config/secrets.util';
 
 export type Provider = 'figma' | 'anthropic';
 
@@ -32,7 +33,7 @@ export class CredentialsService {
   ) {}
 
   private encSecret(): string {
-    return this.config.get<string>('TOKEN_ENC_SECRET') ?? 'dev-token-encryption-secret';
+    return getSecret(this.config, 'TOKEN_ENC_SECRET');
   }
 
   figmaOAuthConfigured(): boolean {

@@ -8,6 +8,7 @@ import path from 'node:path';
 import { PrismaService } from '../prisma/prisma.service';
 import { EngineService } from '../engine/engine.service';
 import { CredentialsService } from '../credentials/credentials.service';
+import { isProduction } from '../config/secrets.util';
 import { RunInput } from './dto/run-qa.dto';
 
 /** A queued run: the job row, its owner, inputs, and its live SSE channel. */
@@ -71,7 +72,7 @@ export class QaService implements OnModuleInit {
    * HARD-disabled in production regardless of the flag.
    */
   private allowPrivateTargets(): boolean {
-    if (process.env.NODE_ENV === 'production') return false;
+    if (isProduction()) return false;
     const flag =
       this.config.get<string>('ALLOW_LOCAL_TARGETS') ??
       this.config.get<string>('QA_ALLOW_PRIVATE_TARGETS');

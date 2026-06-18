@@ -2,7 +2,6 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
-  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -13,7 +12,12 @@ import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
 import { MailService } from '../mail/mail.service';
 import { hashToken, randomToken } from '../common/crypto.util';
+import { getSecret } from '../config/secrets.util';
 import { isAdminEmail } from './admin.util';
+
+// bcrypt work factor for new password hashes. 12 ≈ OWASP's current floor; older
+// hashes stored at a lower cost still verify (the cost is encoded in the hash).
+const BCRYPT_ROUNDS = 12;
 
 export interface TokenMeta {
   userAgent?: string;
@@ -31,10 +35,10 @@ export class AuthService {
   ) {}
 
   private get accessSecret() {
-    return this.config.get<string>('JWT_ACCESS_SECRET') ?? 'dev-access-secret';
+    return getSecret(this.config, 'JWT_ACCESS_SECRET');
   }
   private get refreshSecret() {
-    return this.config.get<string>('JWT_REFRESH_SECRET') ?? 'dev-refresh-secret';
+    return getSecret(this.config, 'JWT_REFRESH_SECRET');
   }
   get accessTtl() {
     return Number(this.config.get('JWT_ACCESS_TTL') ?? 900);
@@ -63,7 +67,7 @@ export class AuthService {
   async signup(email: string, password: string, name?: string): Promise<User> {
     const existing = await this.users.findByEmail(email);
     if (existing) throw new ConflictException('An account with that email already exists.');
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
     const user = await this.users.create({ email, name, passwordHash });
     await this.sendVerificationEmail(user);
     return this.maybePromote(user);
@@ -109,7 +113,10 @@ export class AuthService {
   ): Promise<{ user: User; accessToken: string; refreshToken: string }> {
     let payload: { sub: string };
     try {
-      payload = await this.jwt.verifyAsync(refreshToken, { secret: this.refreshSecret });
+      payload = await this.jwt.verifyAsync(refreshToken, {
+        secret: this.refreshSecret,
+        algorithms: ['HS256'],
+      });
     } catch {
       throw new UnauthorizedException('Invalid refresh token.');
     }
@@ -161,8 +168,9 @@ export class AuthService {
 
   async forgotPassword(email: string): Promise<void> {
     const user = await this.users.findByEmail(email);
-    // Per product requirement: confirm the email exists and tell the user.
-    if (!user) throw new NotFoundException('No account found with that email address.');
+    // Do NOT reveal whether an account exists — respond identically either way
+    // (the controller always returns ok). Prevents account enumeration.
+    if (!user) return;
     const raw = randomToken();
     await this.prisma.verificationToken.create({
       data: {
@@ -185,7 +193,7 @@ export class AuthService {
       const ok = await bcrypt.compare(currentPassword, user.passwordHash);
       if (!ok) throw new BadRequestException('Your current password is incorrect.');
     }
-    const passwordHash = await bcrypt.hash(newPassword, 10);
+    const passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
     await this.prisma.$transaction([
       this.prisma.user.update({ where: { id: userId }, data: { passwordHash } }),
       this.prisma.refreshToken.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } }),
@@ -194,8 +202,9 @@ export class AuthService {
 
   async resendVerification(email: string): Promise<void> {
     const user = await this.users.findByEmail(email);
-    if (!user) throw new NotFoundException('No account found with that email address.');
-    if (user.emailVerified) throw new BadRequestException('This email is already verified.');
+    // Silent no-op for unknown / already-verified accounts — the controller
+    // returns ok regardless, so neither existence nor state is revealed.
+    if (!user || user.emailVerified) return;
     await this.sendVerificationEmail(user);
   }
 
@@ -204,7 +213,7 @@ export class AuthService {
     if (!record || record.type !== 'PASSWORD_RESET' || record.usedAt || record.expiresAt < new Date()) {
       throw new BadRequestException('Invalid or expired reset link.');
     }
-    const passwordHash = await bcrypt.hash(newPassword, 10);
+    const passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
     await this.prisma.$transaction([
       this.prisma.user.update({ where: { id: record.userId }, data: { passwordHash } }),
       this.prisma.verificationToken.update({ where: { id: record.id }, data: { usedAt: new Date() } }),

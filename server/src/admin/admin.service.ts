@@ -1,14 +1,11 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { SEVERITIES, dayKey, parseSeverity } from '../common/stats.util';
 import { ListUsersDto } from './dto/list-users.dto';
 
 const DAY = 86_400_000;
-const SEVERITIES = ['critical', 'high', 'medium', 'low', 'info'] as const;
 
-function dayKey(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
 function parseBool(v?: string): boolean | undefined {
   if (v === 'true') return true;
   if (v === 'false') return false;
@@ -220,36 +217,67 @@ export class AdminService {
   async stats(daysParam?: string) {
     const win = [7, 30, 90].includes(Number(daysParam)) ? Number(daysParam) : 30;
     const now = Date.now();
-    const d7 = now - 7 * DAY;
-    const d30 = now - 30 * DAY;
+    const d7 = new Date(now - 7 * DAY);
+    const d30 = new Date(now - 30 * DAY);
+    // Start of the earliest day shown in the series (UTC midnight) so the
+    // windowed queries below capture every row that lands in a visible bucket.
+    const windowStart = new Date(`${dayKey(new Date(now - (win - 1) * DAY))}T00:00:00.000Z`);
 
-    const [users, jobs, reports, creds] = await Promise.all([
-      this.prisma.user.findMany({
-        select: { id: true, createdAt: true, emailVerified: true, googleId: true, passwordHash: true, role: true, disabledAt: true },
-      }),
-      this.prisma.qAJob.findMany({ select: { userId: true, status: true, createdAt: true } }),
+    // Scalar KPIs are computed DB-side (count/distinct) rather than by loading
+    // whole tables into memory; only the per-day series + the all-time severity
+    // totals fetch rows, and the series fetches are bounded to the window.
+    const [
+      totalUsers,
+      newUsers7d,
+      newUsers30d,
+      verifiedCount,
+      admins,
+      disabled,
+      passwordUsers,
+      googleUsers,
+      bothUsers,
+      totalRuns,
+      runs7d,
+      completed,
+      failed,
+      figmaCreds,
+      anthropicCreds,
+      activeUserRows,
+      reports,
+      windowUsers,
+      windowJobs,
+    ] = await Promise.all([
+      this.prisma.user.count(),
+      this.prisma.user.count({ where: { createdAt: { gte: d7 } } }),
+      this.prisma.user.count({ where: { createdAt: { gte: d30 } } }),
+      this.prisma.user.count({ where: { emailVerified: true } }),
+      this.prisma.user.count({ where: { role: 'ADMIN' } }),
+      this.prisma.user.count({ where: { disabledAt: { not: null } } }),
+      // authMethod(): 'password' = no Google link (regardless of password hash).
+      this.prisma.user.count({ where: { googleId: null } }),
+      // 'google' = linked to Google but no password set.
+      this.prisma.user.count({ where: { googleId: { not: null }, passwordHash: null } }),
+      // 'both' = linked to Google and has a password.
+      this.prisma.user.count({ where: { googleId: { not: null }, passwordHash: { not: null } } }),
+      this.prisma.qAJob.count(),
+      this.prisma.qAJob.count({ where: { createdAt: { gte: d7 } } }),
+      this.prisma.qAJob.count({ where: { status: 'COMPLETED' } }),
+      this.prisma.qAJob.count({ where: { status: 'FAILED' } }),
+      this.prisma.apiCredential.findMany({ where: { provider: 'figma' }, distinct: ['userId'], select: { userId: true } }),
+      this.prisma.apiCredential.findMany({ where: { provider: 'anthropic' }, distinct: ['userId'], select: { userId: true } }),
+      this.prisma.qAJob.findMany({ where: { createdAt: { gte: d30 } }, distinct: ['userId'], select: { userId: true } }),
       this.prisma.qAReport.findMany({ select: { issuesBySeverity: true } }),
-      this.prisma.apiCredential.findMany({ select: { userId: true, provider: true } }),
+      this.prisma.user.findMany({ where: { createdAt: { gte: windowStart } }, select: { createdAt: true } }),
+      this.prisma.qAJob.findMany({ where: { createdAt: { gte: windowStart } }, select: { createdAt: true, status: true } }),
     ]);
 
-    const figmaUsers = new Set(creds.filter((c) => c.provider === 'figma').map((c) => c.userId));
-    const anthropicUsers = new Set(creds.filter((c) => c.provider === 'anthropic').map((c) => c.userId));
-    const activeUsers = new Set(jobs.filter((j) => j.createdAt.getTime() >= d30).map((j) => j.userId));
-
-    const completed = jobs.filter((j) => j.status === 'COMPLETED').length;
-    const failed = jobs.filter((j) => j.status === 'FAILED').length;
     const attempted = completed + failed;
 
     // severity totals across all reports
     const severity: Record<string, number> = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
     for (const r of reports) {
-      if (!r.issuesBySeverity) continue;
-      try {
-        const s = JSON.parse(r.issuesBySeverity) as Record<string, number>;
-        for (const k of SEVERITIES) severity[k] += s[k] ?? 0;
-      } catch {
-        /* ignore */
-      }
+      const s = parseSeverity(r.issuesBySeverity);
+      for (const k of SEVERITIES) severity[k] += s[k] ?? 0;
     }
 
     // Time series for signups + runs over the selected window (7/30/90 days).
@@ -260,11 +288,11 @@ export class AdminService {
       signupsByDay.set(key, 0);
       runsByDay.set(key, { completed: 0, failed: 0, total: 0 });
     }
-    for (const u of users) {
+    for (const u of windowUsers) {
       const b = signupsByDay.get(dayKey(u.createdAt));
       if (b !== undefined) signupsByDay.set(dayKey(u.createdAt), b + 1);
     }
-    for (const j of jobs) {
+    for (const j of windowJobs) {
       const bucket = runsByDay.get(dayKey(j.createdAt));
       if (!bucket) continue;
       bucket.total += 1;
@@ -275,17 +303,17 @@ export class AdminService {
     return {
       days: win,
       kpis: {
-        totalUsers: users.length,
-        newUsers7d: users.filter((u) => u.createdAt.getTime() >= d7).length,
-        newUsers30d: users.filter((u) => u.createdAt.getTime() >= d30).length,
-        verifiedPct: users.length ? Math.round((users.filter((u) => u.emailVerified).length / users.length) * 100) : 0,
-        admins: users.filter((u) => u.role === 'ADMIN').length,
-        disabled: users.filter((u) => u.disabledAt).length,
-        figmaConnected: figmaUsers.size,
-        anthropicConnected: anthropicUsers.size,
-        activeUsers30d: activeUsers.size,
-        totalRuns: jobs.length,
-        runs7d: jobs.filter((j) => j.createdAt.getTime() >= d7).length,
+        totalUsers,
+        newUsers7d,
+        newUsers30d,
+        verifiedPct: totalUsers ? Math.round((verifiedCount / totalUsers) * 100) : 0,
+        admins,
+        disabled,
+        figmaConnected: figmaCreds.length,
+        anthropicConnected: anthropicCreds.length,
+        activeUsers30d: activeUserRows.length,
+        totalRuns,
+        runs7d,
         completed,
         failed,
         successRate: attempted ? Math.round((completed / attempted) * 1000) / 10 : null,
@@ -295,13 +323,13 @@ export class AdminService {
       statusSplit: [
         { name: 'Completed', value: completed },
         { name: 'Failed', value: failed },
-        { name: 'Running/Pending', value: jobs.length - attempted },
+        { name: 'Running/Pending', value: totalRuns - attempted },
       ],
       severity,
       authSplit: [
-        { name: 'Password', value: users.filter((u) => authMethod(u) === 'password').length },
-        { name: 'Google', value: users.filter((u) => authMethod(u) === 'google').length },
-        { name: 'Both', value: users.filter((u) => authMethod(u) === 'both').length },
+        { name: 'Password', value: passwordUsers },
+        { name: 'Google', value: googleUsers },
+        { name: 'Both', value: bothUsers },
       ],
     };
   }

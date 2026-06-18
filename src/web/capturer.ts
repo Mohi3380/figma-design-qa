@@ -21,7 +21,7 @@ import { chromium, type Browser } from 'playwright';
 import type { LiveCapture } from '../types.js';
 import { normalizeDomTree } from './normalizer.js';
 import { CAPTURED_STYLES, snapshotDom, type RawDomNode } from './snapshot.js';
-import { assertSafeUrl, installSsrfGuard, SsrfBlockedError } from './ssrf.js';
+import { assertSafeUrl, hostResolverRuleFor, installSsrfGuard, SsrfBlockedError } from './ssrf.js';
 
 export class WebCaptureError extends Error {}
 
@@ -72,9 +72,11 @@ export async function captureUrl(options: CaptureOptions): Promise<ViewportCaptu
   const log = options.log ?? (() => {});
   const allowPrivate = options.allowPrivateTargets ?? false;
 
-  // SSRF guard: validate the target before doing anything else.
+  // SSRF guard: validate the target before doing anything else, and capture the
+  // validated IP(s) so we can pin the browser to them (see below).
+  let safeAddresses: string[] = [];
   try {
-    await assertSafeUrl(url, { allowPrivate });
+    ({ addresses: safeAddresses } = await assertSafeUrl(url, { allowPrivate }));
   } catch (err) {
     if (err instanceof SsrfBlockedError) throw new WebCaptureError(err.message);
     throw err;
@@ -82,10 +84,20 @@ export async function captureUrl(options: CaptureOptions): Promise<ViewportCaptu
 
   await mkdir(outDir, { recursive: true });
 
+  // Pin the target hostname to the address we just validated so the browser
+  // cannot be steered to an internal IP by a post-check DNS rebind. Only
+  // applies when we own the browser launch (an injected browser is the test
+  // path); skipped for IP-literal targets, which have no DNS to rebind.
+  const resolverRule = hostResolverRuleFor(new URL(url), safeAddresses);
   // Headed launch is slowed slightly so the page is watchable; headless is
   // the default for CI and the deterministic pipeline.
   const browser =
-    options.browser ?? (await chromium.launch({ headless: !options.headed, slowMo: options.headed ? 200 : 0 }));
+    options.browser ??
+    (await chromium.launch({
+      headless: !options.headed,
+      slowMo: options.headed ? 200 : 0,
+      args: resolverRule ? [`--host-resolver-rules=${resolverRule}`] : [],
+    }));
   const ownsBrowser = !options.browser;
   try {
     const results: ViewportCapture[] = [];

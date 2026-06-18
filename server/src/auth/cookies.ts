@@ -1,16 +1,18 @@
 import type { Response } from 'express';
+import { isProduction } from '../config/secrets.util';
 
-const isProd = process.env.NODE_ENV === 'production';
-
-function base(maxAgeSeconds: number) {
+/** Shared cookie attributes (httpOnly + prod-only secure + lax + root path). */
+export function cookieOptions(maxAgeSeconds: number) {
   return {
     httpOnly: true,
-    secure: isProd,
+    secure: isProduction(),
     sameSite: 'lax' as const,
     path: '/',
     maxAge: maxAgeSeconds * 1000,
   };
 }
+
+const base = cookieOptions;
 
 export function setAuthCookies(
   res: Response,
