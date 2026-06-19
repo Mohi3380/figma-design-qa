@@ -106,4 +106,23 @@ describe('users listing', () => {
     expect(lines[0]).toContain('email');
     expect(lines.length).toBe(1 + 3); // header + 3 users
   });
+
+  it('labels and filters auth method consistently, and never leaks secrets', async () => {
+    // A user linked to Google AND with a local password = 'both'.
+    const both = await prisma.user.create({
+      data: { email: 'both@test.local', googleId: 'g-both', passwordHash: 'hash', emailVerified: true },
+    });
+
+    const detail = await admin.getUser(both.id);
+    expect(detail.authMethod).toBe('both');
+    // Sensitive columns selected for classification must not reach the output.
+    expect(JSON.stringify(detail)).not.toMatch(/passwordHash|googleId|hash|g-both/);
+
+    // The 'google' filter must match the LABEL (google-only), excluding 'both'.
+    const googleRows = (await admin.listUsers({ authMethod: 'google' })).rows;
+    expect(googleRows.some((r) => r.id === both.id)).toBe(false);
+    expect(JSON.stringify(googleRows)).not.toMatch(/passwordHash|googleId/);
+
+    await prisma.user.delete({ where: { id: both.id } });
+  });
 });

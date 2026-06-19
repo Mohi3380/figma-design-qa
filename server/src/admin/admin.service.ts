@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { dayKey } from '../common/stats.util';
+import { AUTH_METHOD_WHERE, authMethodOf } from '../common/auth-method.util';
 import { ListUsersDto } from './dto/list-users.dto';
 
 const DAY = 86_400_000;
@@ -10,11 +11,6 @@ function parseBool(v?: string): boolean | undefined {
   if (v === 'true') return true;
   if (v === 'false') return false;
   return undefined;
-}
-function authMethod(u: { googleId: string | null; passwordHash: string | null }): 'google' | 'password' | 'both' {
-  if (u.googleId && u.passwordHash) return 'both';
-  if (u.googleId) return 'google';
-  return 'password';
 }
 
 @Injectable()
@@ -59,8 +55,11 @@ export class AdminService {
 
     if (dto.role === 'USER' || dto.role === 'ADMIN') and.push({ role: dto.role });
 
-    if (dto.authMethod === 'google') and.push({ googleId: { not: null } });
-    if (dto.authMethod === 'password') and.push({ googleId: null, passwordHash: { not: null } });
+    // Use the shared classifier's where-fragments so the filter matches the
+    // authMethod LABEL shown in the table (previously 'google' also matched
+    // 'both' users, disagreeing with their displayed label).
+    if (dto.authMethod === 'google') and.push(AUTH_METHOD_WHERE.google);
+    if (dto.authMethod === 'password') and.push(AUTH_METHOD_WHERE.password);
 
     if (and.length) where.AND = and;
     return where;
@@ -147,7 +146,7 @@ export class AdminService {
       emailVerified: u.emailVerified,
       disabled: Boolean(u.disabledAt),
       avatarUrl: u.avatarUrl,
-      authMethod: authMethod(u),
+      authMethod: authMethodOf(u),
       figmaConnected: u.credentials.some((c) => c.provider === 'figma'),
       anthropicConnected: u.credentials.some((c) => c.provider === 'anthropic'),
       runCount: u._count.qaJobs,
@@ -216,7 +215,7 @@ export class AdminService {
       disabled: Boolean(u.disabledAt),
       disabledAt: u.disabledAt,
       avatarUrl: u.avatarUrl,
-      authMethod: authMethod(u),
+      authMethod: authMethodOf(u),
       createdAt: u.createdAt,
       updatedAt: u.updatedAt,
       runCount: u._count.qaJobs,
@@ -268,12 +267,10 @@ export class AdminService {
       this.prisma.user.count({ where: { emailVerified: true } }),
       this.prisma.user.count({ where: { role: 'ADMIN' } }),
       this.prisma.user.count({ where: { disabledAt: { not: null } } }),
-      // authMethod(): 'password' = no Google link (regardless of password hash).
-      this.prisma.user.count({ where: { googleId: null } }),
-      // 'google' = linked to Google but no password set.
-      this.prisma.user.count({ where: { googleId: { not: null }, passwordHash: null } }),
-      // 'both' = linked to Google and has a password.
-      this.prisma.user.count({ where: { googleId: { not: null }, passwordHash: { not: null } } }),
+      // Same classifier as the per-row authMethod label (shared where-fragments).
+      this.prisma.user.count({ where: AUTH_METHOD_WHERE.password }),
+      this.prisma.user.count({ where: AUTH_METHOD_WHERE.google }),
+      this.prisma.user.count({ where: AUTH_METHOD_WHERE.both }),
       this.prisma.qAJob.count(),
       this.prisma.qAJob.count({ where: { createdAt: { gte: d7 } } }),
       this.prisma.qAJob.count({ where: { status: 'COMPLETED' } }),
