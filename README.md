@@ -154,8 +154,7 @@ Pipeline: Extract (Figma) → Capture (Playwright) → spec diff (Layer A) → r
 | `src/report/write.ts` | Writes `report.json` + `report.html`. |
 | `src/report/pdf.ts` | `report.html` → `report.pdf` via Chromium print. |
 | `src/pipeline.ts` | The full two‑URL pipeline as one reusable function (used by the CLI **and** the backend). |
-| `src/web-ui/server.ts` | The original dependency‑free local web UI (superseded by `web/` + `server/`). |
-| `src/cli.ts` | `extract` · `capture` · `compare` · `run` · `serve`. |
+| `src/cli.ts` | `extract` · `capture` · `compare` · `run`. |
 
 ### Tests
 ```bash

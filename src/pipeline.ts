@@ -1,10 +1,11 @@
 /**
  * The full pipeline as one reusable function (spec §14): two URLs in,
- * report out. Extracted from the CLI so both `design-qa run` and the web UI
- * (`design-qa serve`) drive the exact same path — no logic forks between them.
+ * report out. Extracted from the CLI so both `design-qa run` and the hosted
+ * app (the NestJS server bridges to this via the compiled engine) drive the
+ * exact same path — no logic forks between them.
  *
  * `log` is the single progress channel: the CLI prints it to the terminal,
- * the web server streams it to the browser over SSE.
+ * the server streams it to the browser over SSE.
  */
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
