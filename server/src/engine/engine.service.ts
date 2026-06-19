@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -16,8 +16,22 @@ type RunPipelineFn = (opts: Record<string, unknown>) => Promise<any>;
 type LoadConfigFn = (configPath?: string) => Promise<any>;
 
 @Injectable()
-export class EngineService {
+export class EngineService implements OnModuleInit {
+  private readonly logger = new Logger(EngineService.name);
   private mod: { runPipeline: RunPipelineFn; loadConfig: LoadConfigFn } | null = null;
+
+  /**
+   * Warm the heavy ESM engine graph at startup so the FIRST QA run doesn't pay
+   * the module-load cost inside its request (and holding a concurrency slot).
+   * Best-effort: if the engine isn't built yet, log and fall back to lazy load.
+   */
+  async onModuleInit(): Promise<void> {
+    try {
+      await this.load();
+    } catch (err) {
+      this.logger.warn(`Engine not preloaded at startup (will load on first run): ${String(err)}`);
+    }
+  }
 
   private engineRoot(): string {
     return process.env.ENGINE_ROOT

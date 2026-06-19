@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { SEVERITIES, dayKey, parseSeverity } from '../common/stats.util';
+import { dayKey } from '../common/stats.util';
 import { ListUsersDto } from './dto/list-users.dto';
 
 const DAY = 86_400_000;
@@ -29,6 +29,12 @@ export class AdminService {
 
     const search = dto.search?.trim();
     if (search) {
+      // NOTE: on SQLite (the current datasource) `contains` compiles to LIKE,
+      // which is case-insensitive for ASCII — so both branches already match
+      // case-insensitively. Prisma's `mode: 'insensitive'` is NOT supported on
+      // SQLite (it errors), so we must not add it here. When this moves to
+      // Postgres, add `mode: 'insensitive'` to BOTH branches (Postgres LIKE is
+      // case-sensitive) and drop the email .toLowerCase() normalization.
       and.push({
         OR: [
           { email: { contains: search.toLowerCase() } },
@@ -76,6 +82,23 @@ export class AdminService {
     }
   }
 
+  // The columns the table + CSV both need (one definition so they can't drift).
+  private static readonly ROW_SELECT = {
+    id: true,
+    email: true,
+    name: true,
+    role: true,
+    emailVerified: true,
+    disabledAt: true,
+    avatarUrl: true,
+    googleId: true,
+    passwordHash: true,
+    createdAt: true,
+    _count: { select: { qaJobs: true } },
+    credentials: { select: { provider: true } },
+    qaJobs: { select: { createdAt: true }, orderBy: { createdAt: 'desc' }, take: 1 },
+  } satisfies Prisma.UserSelect;
+
   async listUsers(dto: ListUsersDto) {
     const where = this.buildWhere(dto);
     const page = Math.max(1, Number(dto.page) || 1);
@@ -88,21 +111,7 @@ export class AdminService {
         orderBy: this.orderBy(dto),
         skip: (page - 1) * pageSize,
         take: pageSize,
-        select: {
-          id: true,
-          email: true,
-          name: true,
-          role: true,
-          emailVerified: true,
-          disabledAt: true,
-          avatarUrl: true,
-          googleId: true,
-          passwordHash: true,
-          createdAt: true,
-          _count: { select: { qaJobs: true } },
-          credentials: { select: { provider: true } },
-          qaJobs: { select: { createdAt: true }, orderBy: { createdAt: 'desc' }, take: 1 },
-        },
+        select: AdminService.ROW_SELECT,
       }),
     ]);
 
@@ -148,19 +157,25 @@ export class AdminService {
   }
 
   async exportUsersCsv(dto: ListUsersDto): Promise<string> {
-    // Same filters/search as the table, but all matching rows (no pagination).
-    const full: ListUsersDto = { ...dto, page: '1', pageSize: '100' };
+    // Same filters/search/order as the table, but all matching rows.
+    const where = this.buildWhere(dto);
+    const orderBy = this.orderBy(dto);
     const cols = ['email', 'name', 'role', 'emailVerified', 'disabled', 'authMethod', 'figmaConnected', 'anthropicConnected', 'runCount', 'lastRunAt', 'createdAt'];
     const esc = (v: unknown) => {
       const s = v === null || v === undefined ? '' : String(v instanceof Date ? v.toISOString() : v);
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
     const lines = [cols.join(',')];
-    // Page through everything so an unbounded admin DB still exports fully.
-    for (let page = 1; ; page++) {
-      const res = await this.listUsers({ ...full, page: String(page) });
-      for (const r of res.rows) lines.push(cols.map((c) => esc((r as Record<string, unknown>)[c])).join(','));
-      if (page >= res.pages) break;
+    // Page through everything with skip/take. Unlike calling listUsers per page,
+    // this never re-runs the (page-invariant) COUNT(*) — one findMany per page.
+    const pageSize = 100;
+    for (let skip = 0; ; skip += pageSize) {
+      const rows = await this.prisma.user.findMany({ where, orderBy, skip, take: pageSize, select: AdminService.ROW_SELECT });
+      for (const u of rows) {
+        const r = this.rowView(u) as Record<string, unknown>;
+        lines.push(cols.map((c) => esc(r[c])).join(','));
+      }
+      if (rows.length < pageSize) break;
     }
     return lines.join('\n');
   }
@@ -266,19 +281,24 @@ export class AdminService {
       this.prisma.apiCredential.findMany({ where: { provider: 'figma' }, distinct: ['userId'], select: { userId: true } }),
       this.prisma.apiCredential.findMany({ where: { provider: 'anthropic' }, distinct: ['userId'], select: { userId: true } }),
       this.prisma.qAJob.findMany({ where: { createdAt: { gte: d30 } }, distinct: ['userId'], select: { userId: true } }),
-      this.prisma.qAReport.findMany({ select: { issuesBySeverity: true } }),
+      // All-time severity totals summed DB-side over the denormalized columns —
+      // no longer loads + JSON-parses every report row into memory.
+      this.prisma.qAReport.aggregate({
+        _sum: { sevCritical: true, sevHigh: true, sevMedium: true, sevLow: true, sevInfo: true },
+      }),
       this.prisma.user.findMany({ where: { createdAt: { gte: windowStart } }, select: { createdAt: true } }),
       this.prisma.qAJob.findMany({ where: { createdAt: { gte: windowStart } }, select: { createdAt: true, status: true } }),
     ]);
 
     const attempted = completed + failed;
 
-    // severity totals across all reports
-    const severity: Record<string, number> = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
-    for (const r of reports) {
-      const s = parseSeverity(r.issuesBySeverity);
-      for (const k of SEVERITIES) severity[k] += s[k] ?? 0;
-    }
+    const severity: Record<string, number> = {
+      critical: reports._sum.sevCritical ?? 0,
+      high: reports._sum.sevHigh ?? 0,
+      medium: reports._sum.sevMedium ?? 0,
+      low: reports._sum.sevLow ?? 0,
+      info: reports._sum.sevInfo ?? 0,
+    };
 
     // Time series for signups + runs over the selected window (7/30/90 days).
     const signupsByDay = new Map<string, number>();
@@ -363,18 +383,22 @@ export class AdminService {
     if (!u) throw new NotFoundException('User not found.');
   }
 
+  /** Guard self-destructive admin actions (no lock-out / last-admin foot-gun).
+   * One place so every actor-targets-self rule is stated the same way. */
+  private assertNotSelf(actorId: string, id: string, message: string) {
+    if (actorId === id) throw new ForbiddenException(message);
+  }
+
   async setRole(actorId: string, id: string, role: string) {
     if (role !== 'USER' && role !== 'ADMIN') throw new BadRequestException('Invalid role.');
-    if (actorId === id && role !== 'ADMIN') {
-      throw new ForbiddenException('You cannot remove your own admin access.');
-    }
+    if (role !== 'ADMIN') this.assertNotSelf(actorId, id, 'You cannot remove your own admin access.');
     await this.mustExist(id);
     await this.prisma.user.update({ where: { id }, data: { role } });
     return { ok: true };
   }
 
   async setDisabled(actorId: string, id: string, disabled: boolean) {
-    if (actorId === id && disabled) throw new ForbiddenException('You cannot disable your own account.');
+    if (disabled) this.assertNotSelf(actorId, id, 'You cannot disable your own account.');
     await this.mustExist(id);
     await this.prisma.$transaction([
       this.prisma.user.update({ where: { id }, data: { disabledAt: disabled ? new Date() : null } }),
@@ -402,7 +426,7 @@ export class AdminService {
   }
 
   async deleteUser(actorId: string, id: string) {
-    if (actorId === id) throw new ForbiddenException('You cannot delete your own account.');
+    this.assertNotSelf(actorId, id, 'You cannot delete your own account.');
     await this.mustExist(id);
     await this.prisma.user.delete({ where: { id } });
     return { ok: true };

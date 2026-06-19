@@ -106,6 +106,10 @@ export async function captureUrl(options: CaptureOptions): Promise<ViewportCaptu
       log(`Capturing ${url} at ${width}×${height}…`);
 
       const page = await browser.newPage({ viewport: { width, height } });
+      // Bound every Playwright action (click, screenshot, etc.) so nothing after
+      // the initial navigation can hang indefinitely. goto sets its own 30s cap
+      // below; this covers the post-interaction settle + capture path.
+      page.setDefaultTimeout(30_000);
       try {
         // tsx/esbuild compile with keepNames, which sprinkles `__name(...)`
         // helper calls into the serialized snapshotDom source. The helper
@@ -122,8 +126,16 @@ export async function captureUrl(options: CaptureOptions): Promise<ViewportCaptu
           const msg = err instanceof Error ? err.message.split('\n')[0] : String(err);
           throw new WebCaptureError(`Could not load ${url} within 30s — ${msg}`);
         }
-        // Late font swaps would corrupt typography + text boxes.
-        await page.evaluate(() => document.fonts.ready.then(() => undefined));
+        // Late font swaps would corrupt typography + text boxes. After
+        // networkidle fonts are normally already loaded, so this resolves fast;
+        // cap it in-page at 10s so a font that never settles can't hang capture.
+        await page.evaluate(
+          () =>
+            Promise.race([
+              document.fonts.ready.then(() => undefined),
+              new Promise<undefined>((r) => setTimeout(() => r(undefined), 10_000)),
+            ]),
+        );
 
         const slug = slugFor(url);
 

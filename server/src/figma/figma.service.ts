@@ -40,12 +40,6 @@ export class FigmaService {
     return `${AUTHORIZE_URL}?${p.toString()}`;
   }
 
-  private basicAuth(): string {
-    const id = this.config.get<string>('FIGMA_OAUTH_CLIENT_ID') ?? '';
-    const secret = this.config.get<string>('FIGMA_OAUTH_CLIENT_SECRET') ?? '';
-    return 'Basic ' + Buffer.from(`${id}:${secret}`).toString('base64');
-  }
-
   async exchangeAndStore(userId: string, code: string): Promise<void> {
     const body = new URLSearchParams({
       redirect_uri: this.redirectUri(),
@@ -56,7 +50,8 @@ export class FigmaService {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
-        Authorization: this.basicAuth(),
+        // Shared builder with the refresh path (CredentialsService).
+        Authorization: this.credentials.figmaBasicAuth(),
       },
       body,
     });

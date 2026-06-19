@@ -55,7 +55,10 @@ export class UsersController {
     const ext = ALLOWED[file.mimetype];
     if (!ext) throw new BadRequestException('Only JPG, PNG, or WebP images are allowed.');
     fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-    const filename = `${current.id}-${randomToken(6)}.${ext}`;
+    // Opaque filename — no userId prefix. The avatar route is public (so <img>
+    // can load it), so a guessable, identity-revealing name would let anyone
+    // enumerate avatars and correlate them to a user id.
+    const filename = `${randomToken(16)}.${ext}`;
     fs.writeFileSync(path.join(UPLOAD_DIR, filename), file.buffer);
     const base = (this.config.get<string>('API_PUBLIC_URL') ?? 'http://localhost:4300/api').replace(/\/+$/, '');
     const user = await this.users.setAvatarUrl(current.id, `${base}/users/avatars/${filename}`);

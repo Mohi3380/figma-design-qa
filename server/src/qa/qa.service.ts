@@ -9,6 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { EngineService } from '../engine/engine.service';
 import { CredentialsService } from '../credentials/credentials.service';
 import { isProduction } from '../config/secrets.util';
+import { parseSeverity } from '../common/stats.util';
 import { RunInput } from './dto/run-qa.dto';
 
 /** A queued run: the job row, its owner, inputs, and its live SSE channel. */
@@ -151,6 +152,10 @@ export class QaService implements OnModuleInit {
       }
     };
 
+    // The engine pipeline is not directly cancellable. Hold a reference so that
+    // on timeout we can keep the concurrency slot reserved until it truly stops.
+    let pipelinePromise: Promise<{ report?: any; htmlPath?: string; jsonPath?: string; pdfPath?: string; viewport?: number }> | null = null;
+
     try {
       // Mark RUNNING and re-read the row so the ownership check below is against
       // the persisted job, not the value we passed in.
@@ -167,14 +172,19 @@ export class QaService implements OnModuleInit {
 
       emit('log', { message: 'Starting QA run…', jobId });
 
-      const tokenInfo = await this.credentials.getFigmaToken(userId);
+      // Both credential reads are independent and owner-scoped — fetch them
+      // concurrently rather than serializing two DB round-trips + decryptions.
+      const [tokenInfo, anthropicKeyRaw] = await Promise.all([
+        this.credentials.getFigmaToken(userId),
+        this.credentials.getAnthropicKey(userId),
+      ]);
       if (!tokenInfo) {
         throw new Error('No Figma access. Connect your own Figma account (OAuth or token) to run a QA.');
       }
 
       // Vision uses the user's OWN Anthropic key. If requested without a key,
       // run the deterministic layers and tell them why vision was skipped.
-      const anthropicKey = (await this.credentials.getAnthropicKey(userId)) ?? undefined;
+      const anthropicKey = anthropicKeyRaw ?? undefined;
       const visionEnabled = input.vision && Boolean(anthropicKey);
       if (input.vision && !anthropicKey) {
         emit('log', {
@@ -186,26 +196,26 @@ export class QaService implements OnModuleInit {
       const outDir = path.join(this.outputRoot(), jobId);
       await fs.mkdir(outDir, { recursive: true });
 
-      const result = await this.withTimeout(
-        this.engine.runPipeline({
-          figmaUrl: input.figma,
-          target: input.target,
-          viewport: input.viewport,
-          config,
-          outDir,
-          vision: visionEnabled,
-          pdf: input.pdf,
-          figmaToken: tokenInfo.token,
-          figmaTokenScheme: tokenInfo.scheme,
-          anthropicKey,
-          allowPrivateTargets: this.allowPrivateTargets(),
-          log: (message: string) => emit('log', { message }),
-        }),
-        this.jobTimeoutMs(),
-        'QA run timed out.',
-      );
+      // Hoisted so the `finally` can keep this concurrency slot reserved until
+      // the (non-cancellable) pipeline actually settles after a timeout.
+      pipelinePromise = this.engine.runPipeline({
+        figmaUrl: input.figma,
+        target: input.target,
+        viewport: input.viewport,
+        config,
+        outDir,
+        vision: visionEnabled,
+        pdf: input.pdf,
+        figmaToken: tokenInfo.token,
+        figmaTokenScheme: tokenInfo.scheme,
+        anthropicKey,
+        allowPrivateTargets: this.allowPrivateTargets(),
+        log: (message: string) => emit('log', { message }),
+      });
+      const result = await this.withTimeout(pipelinePromise, this.jobTimeoutMs(), 'QA run timed out.');
 
       const summary = result.report?.summary ?? {};
+      const sev = parseSeverity(JSON.stringify(summary.issuesBySeverity ?? {}));
       await this.prisma.qAReport.create({
         data: {
           jobId,
@@ -216,6 +226,13 @@ export class QaService implements OnModuleInit {
           failed: summary.failed ?? 0,
           matched: result.report?.matching?.matched ?? 0,
           issuesBySeverity: JSON.stringify(summary.issuesBySeverity ?? {}),
+          // Denormalized per-severity counts so dashboards can SUM() them
+          // DB-side instead of loading + JSON-parsing every report row.
+          sevCritical: sev.critical ?? 0,
+          sevHigh: sev.high ?? 0,
+          sevMedium: sev.medium ?? 0,
+          sevLow: sev.low ?? 0,
+          sevInfo: sev.info ?? 0,
           summary: JSON.stringify(summary),
           htmlPath: result.htmlPath ?? null,
           jsonPath: result.jsonPath ?? null,
@@ -248,26 +265,29 @@ export class QaService implements OnModuleInit {
         .catch(() => undefined);
       emit('error', { message: safe, jobId });
     } finally {
+      // The client has already been told the outcome above. If the pipeline is
+      // still running (we timed out and abandoned the race), keep this slot
+      // reserved until it actually settles so an orphaned browser can't push
+      // real concurrency past maxGlobal — bounded so a wedged run can't pin the
+      // slot forever.
+      if (pipelinePromise) await settleWithin(pipelinePromise, this.jobTimeoutMs());
       subject.complete();
     }
   }
 
   /**
-   * Race a promise against a wall-clock timeout. Note: the engine pipeline is
-   * not directly cancellable, so on timeout the job is failed and its slot is
-   * freed immediately; an orphaned pipeline closes its own browser shortly
-   * after (Playwright has its own per-step timeouts). This bounds queue latency
-   * even if a single run wedges.
+   * Race a promise against a wall-clock timeout. The engine pipeline is not
+   * directly cancellable; on timeout this rejects (the caller frees the queue
+   * after the orphan drains — see runJob's finally). `Promise.race` stays
+   * subscribed to `p`, so a late rejection after the timeout won't surface as an
+   * unhandled rejection.
    */
   private withTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> {
     let timer: NodeJS.Timeout;
     const timeout = new Promise<never>((_, reject) => {
       timer = setTimeout(() => reject(new Error(message)), ms);
     });
-    return Promise.race([
-      p.finally(() => clearTimeout(timer)),
-      timeout,
-    ]) as Promise<T>;
+    return Promise.race([p, timeout]).finally(() => clearTimeout(timer)) as Promise<T>;
   }
 
   async listJobs(userId: string) {
@@ -286,34 +306,84 @@ export class QaService implements OnModuleInit {
       error: j.error,
       createdAt: j.createdAt,
       finishedAt: j.finishedAt,
-      report: j.report
-        ? {
-            frameName: j.report.frameName,
-            viewport: j.report.viewport,
-            pointersChecked: j.report.pointersChecked,
-            passed: j.report.passed,
-            failed: j.report.failed,
-            matched: j.report.matched,
-            issuesBySeverity: safeJson(j.report.issuesBySeverity),
-            hasPdf: Boolean(j.report.pdfPath),
-          }
-        : null,
+      report: j.report ? this.reportView(j.report) : null,
     }));
   }
 
-  async getJob(userId: string, id: string) {
+  /** Client-safe projection of a report row: parsed severity, no filesystem
+   * paths, no raw summary blob — the same shape listJobs exposes. */
+  private reportView(r: {
+    frameName: string | null;
+    viewport: number | null;
+    pointersChecked: number;
+    passed: number;
+    failed: number;
+    matched: number;
+    issuesBySeverity: string | null;
+    pdfPath: string | null;
+  }) {
+    return {
+      frameName: r.frameName,
+      viewport: r.viewport,
+      pointersChecked: r.pointersChecked,
+      passed: r.passed,
+      failed: r.failed,
+      matched: r.matched,
+      issuesBySeverity: parseSeverity(r.issuesBySeverity),
+      hasPdf: Boolean(r.pdfPath),
+    };
+  }
+
+  /** Internal: the owner-scoped raw job row (includes file paths). Never return
+   * this straight to a client — use getJob for that. */
+  private async getJobOwned(userId: string, id: string) {
     const job = await this.prisma.qAJob.findFirst({ where: { id, userId }, include: { report: true } });
     if (!job) throw new NotFoundException('QA job not found.');
     return job;
   }
 
+  /** Client-facing single job: sanitized like listJobs (no internal fs paths,
+   * severity parsed to an object) instead of the raw Prisma row. */
+  async getJob(userId: string, id: string) {
+    const j = await this.getJobOwned(userId, id);
+    return {
+      id: j.id,
+      figmaUrl: j.figmaUrl,
+      targetUrl: j.targetUrl,
+      status: j.status,
+      progress: j.progress,
+      error: j.error,
+      viewport: j.viewport,
+      createdAt: j.createdAt,
+      startedAt: j.startedAt,
+      finishedAt: j.finishedAt,
+      report: j.report ? this.reportView(j.report) : null,
+    };
+  }
+
   /** Resolve a report file (html/pdf) for a user-owned job. */
   async getReportFile(userId: string, id: string, kind: 'html' | 'pdf'): Promise<string> {
-    const job = await this.getJob(userId, id);
+    const job = await this.getJobOwned(userId, id);
     const p = kind === 'pdf' ? job.report?.pdfPath : job.report?.htmlPath;
     if (!p) throw new NotFoundException(`No ${kind} report for this job.`);
     return p;
   }
+}
+
+/**
+ * Await a promise but never longer than `capMs` — resolves once the promise
+ * settles (success or failure) or the cap elapses, whichever comes first. The
+ * timer is unref'd so it can't keep the event loop alive on its own.
+ */
+function settleWithin(p: Promise<unknown>, capMs: number): Promise<void> {
+  return new Promise<void>((resolve) => {
+    const timer = setTimeout(resolve, capMs);
+    timer.unref?.();
+    p.then(() => undefined, () => undefined).finally(() => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
 }
 
 /**
@@ -329,13 +399,4 @@ function sanitizeError(err: unknown): string {
   msg = msg.replace(/\/(?:home|users|var|etc|tmp|root|app|opt|usr)\/[^\s"'<>]*/gi, '<path>'); // common unix paths
   if (msg.length > 300) msg = msg.slice(0, 299) + '…';
   return msg || 'QA run failed.';
-}
-
-function safeJson(s: string | null): unknown {
-  if (!s) return null;
-  try {
-    return JSON.parse(s);
-  } catch {
-    return null;
-  }
 }

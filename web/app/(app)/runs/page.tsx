@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { API_BASE, api } from '@/lib/api';
+import { SEVERITY_COLORS } from '@/lib/severity';
 
 type Status = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
 
@@ -29,12 +30,8 @@ interface Run {
   report: Report | null;
 }
 
-const SEV = [
-  { k: 'critical', c: '#DC2626' },
-  { k: 'high', c: '#EA580C' },
-  { k: 'medium', c: '#D97706' },
-  { k: 'low', c: '#2563EB' },
-] as const;
+// Run history omits the non-actionable "info" tier on purpose.
+const SEV = (['critical', 'high', 'medium', 'low'] as const).map((k) => ({ k, c: SEVERITY_COLORS[k] }));
 
 function SeverityChips({ sev }: { sev: Record<string, number> | null }) {
   if (!sev) return <span className="cell-faint">—</span>;

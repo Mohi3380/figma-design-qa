@@ -42,7 +42,9 @@ export class CredentialsService {
     );
   }
 
-  private figmaBasicAuth(): string {
+  /** HTTP Basic header for the Figma OAuth app (client_id:client_secret).
+   * Public so FigmaService (token exchange) and refreshFigma share one builder. */
+  figmaBasicAuth(): string {
     const id = this.config.get<string>('FIGMA_OAUTH_CLIENT_ID') ?? '';
     const secret = this.config.get<string>('FIGMA_OAUTH_CLIENT_SECRET') ?? '';
     return 'Basic ' + Buffer.from(`${id}:${secret}`).toString('base64');
@@ -77,8 +79,16 @@ export class CredentialsService {
     const cred = await this.ownedCredential(userId, 'figma');
     if (!cred) return null;
     let token = decryptSecret(cred.secretEnc, this.encSecret());
-    if (cred.type === 'oauth' && cred.expiresAt && cred.expiresAt < new Date() && cred.refreshTokenEnc) {
-      token = (await this.refreshFigma(userId, cred.refreshTokenEnc)) ?? token;
+    const expired = cred.type === 'oauth' && Boolean(cred.expiresAt) && cred.expiresAt! < new Date();
+    if (expired) {
+      // Try to refresh; if there is no refresh token, or the refresh fails, the
+      // stored access token is dead — surface a clear "reconnect" instead of
+      // handing back a stale token that fails downstream with an opaque 401.
+      const refreshed = cred.refreshTokenEnc ? await this.refreshFigma(userId, cred.refreshTokenEnc) : null;
+      if (!refreshed) {
+        throw new BadRequestException('Your Figma connection has expired. Reconnect Figma to run a QA.');
+      }
+      token = refreshed;
     }
     return { token, scheme: cred.type === 'pat' ? 'pat' : 'oauth' };
   }

@@ -111,7 +111,7 @@ export class AuthService {
     refreshToken: string,
     meta: TokenMeta = {},
   ): Promise<{ user: User; accessToken: string; refreshToken: string }> {
-    let payload: { sub: string };
+    let payload: { sub: string; type?: string };
     try {
       payload = await this.jwt.verifyAsync(refreshToken, {
         secret: this.refreshSecret,
@@ -120,11 +120,31 @@ export class AuthService {
     } catch {
       throw new UnauthorizedException('Invalid refresh token.');
     }
+    // Defense-in-depth: only a token explicitly minted as a refresh token may
+    // rotate — never an access token that happens to verify under this secret.
+    if (payload.type !== 'refresh') {
+      throw new UnauthorizedException('Invalid refresh token.');
+    }
     const stored = await this.prisma.refreshToken.findUnique({ where: { tokenHash: hashToken(refreshToken) } });
     if (!stored || stored.revokedAt || stored.expiresAt < new Date()) {
       throw new UnauthorizedException('Refresh token expired or revoked.');
     }
-    await this.prisma.refreshToken.update({ where: { id: stored.id }, data: { revokedAt: new Date() } });
+    // Atomically claim the token: flip revokedAt only if it is still null. With
+    // two concurrent requests presenting the same token, exactly one update
+    // matches a row — the loser gets count===0 and is rejected, so rotation is
+    // strictly single-use (no race that mints two live token families).
+    const claim = await this.prisma.refreshToken.updateMany({
+      where: { id: stored.id, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    if (claim.count === 0) {
+      // Someone else already rotated this exact token. Reject this request, but
+      // do NOT revoke the rest of the family: benign concurrent refreshes are
+      // normal here (multiple tabs share the cookie), and the winner has already
+      // issued a fresh, valid token that those tabs will pick up. (Revoking the
+      // family on every race would log honest users out.)
+      throw new UnauthorizedException('Refresh token already used.');
+    }
     const user = await this.users.findById(payload.sub);
     if (!user) throw new UnauthorizedException('User no longer exists.');
     this.assertNotDisabled(user);
@@ -170,7 +190,12 @@ export class AuthService {
     const user = await this.users.findByEmail(email);
     // Do NOT reveal whether an account exists — respond identically either way
     // (the controller always returns ok). Prevents account enumeration.
-    if (!user) return;
+    //
+    // Also skip silently for accounts with no password set (Google-only / SSO):
+    // issuing a reset would create a local password login path on an identity
+    // that is meant to be governed solely by the SSO provider. Such users add a
+    // password through change-password while signed in, not via this flow.
+    if (!user || !user.passwordHash) return;
     const raw = randomToken();
     await this.prisma.verificationToken.create({
       data: {

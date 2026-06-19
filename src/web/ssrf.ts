@@ -187,17 +187,32 @@ export function hostResolverRuleFor(url: URL, addresses: string[]): string | und
  * fetches and redirects to other hosts, complementing the IP pinning that
  * `hostResolverRuleFor` applies to the primary target.
  */
+// Schemes that never touch the network and so carry no SSRF risk — inline page
+// data the renderer needs (data:/blob: images & fonts, about:blank). Blocking
+// these (as a blanket "non-http(s) → abort" did) corrupts the captured
+// screenshot the pixel diff relies on.
+const SAFE_SCHEMES = new Set(['data:', 'blob:', 'about:', 'filesystem:']);
+
+// How long an allow-decision may be reused before the host is re-resolved.
+// Bounding it limits the window in which a DNS rebind (host first resolves
+// global, then flips to an internal IP) can ride a stale "allowed" verdict.
+const HOST_VERDICT_TTL_MS = 5_000;
+
 export async function installSsrfGuard(page: Page, opts: { allowPrivate: boolean }): Promise<void> {
-  const cache = new Map<string, boolean>(); // host -> allowed
+  const cache = new Map<string, { allowed: boolean; at: number }>(); // host -> verdict
   await page.route('**/*', async (route) => {
     try {
       const u = new URL(route.request().url());
+      if (SAFE_SCHEMES.has(u.protocol)) return route.continue();
       if (u.protocol !== 'http:' && u.protocol !== 'https:') return route.abort('blockedbyclient');
       const host = u.hostname.replace(/^\[|\]$/g, '').toLowerCase();
-      let allowed = cache.get(host);
-      if (allowed === undefined) {
+      const hit = cache.get(host);
+      let allowed: boolean;
+      if (hit && Date.now() - hit.at < HOST_VERDICT_TTL_MS) {
+        allowed = hit.allowed;
+      } else {
         allowed = (await inspectHost(host, opts.allowPrivate)).reason === null;
-        cache.set(host, allowed);
+        cache.set(host, { allowed, at: Date.now() });
       }
       return allowed ? route.continue() : route.abort('blockedbyclient');
     } catch {

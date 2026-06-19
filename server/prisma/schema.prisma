@@ -118,6 +118,14 @@ model QAReport {
   matched         Int      @default(0)
   // JSON stored as text (portable across SQLite/Postgres).
   issuesBySeverity String?
+  // Denormalized per-severity issue counts (derived from issuesBySeverity on
+  // write) so the dashboards SUM() them DB-side instead of loading + parsing
+  // every report row. Keep in sync with the JSON blob above.
+  sevCritical      Int      @default(0)
+  sevHigh          Int      @default(0)
+  sevMedium        Int      @default(0)
+  sevLow           Int      @default(0)
+  sevInfo          Int      @default(0)
   summary          String?
   htmlPath         String?
   jsonPath         String?

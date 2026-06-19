@@ -1,16 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { dayKey, parseSeverity } from '../common/stats.util';
+import { dayKey } from '../common/stats.util';
 
 const DAY = 86_400_000;
-
-interface Severity {
-  critical: number;
-  high: number;
-  medium: number;
-  low: number;
-  info: number;
-}
 
 @Injectable()
 export class DashboardService {
@@ -28,11 +20,20 @@ export class DashboardService {
       this.prisma.qAJob.count({ where: { userId, status: 'COMPLETED' } }),
       this.prisma.qAJob.count({ where: { userId, status: 'FAILED' } }),
       this.prisma.qAJob.count({ where: { userId, createdAt: { gte: weekAgo } } }),
-      // Reports exist only for completed jobs, so this is exactly the set the
-      // pass-rate + severity totals are computed over (no window — all-time).
-      this.prisma.qAReport.findMany({
+      // Pass-rate + severity totals across all of this user's reports, summed
+      // DB-side over the denormalized columns — no longer loads + parses every
+      // report row into memory on each dashboard load.
+      this.prisma.qAReport.aggregate({
         where: { job: { userId } },
-        select: { pointersChecked: true, passed: true, issuesBySeverity: true },
+        _sum: {
+          pointersChecked: true,
+          passed: true,
+          sevCritical: true,
+          sevHigh: true,
+          sevMedium: true,
+          sevLow: true,
+          sevInfo: true,
+        },
       }),
       // Only the last 30 days are needed for the run series.
       this.prisma.qAJob.findMany({
@@ -55,19 +56,15 @@ export class DashboardService {
     ]);
 
     // Check-level pass rate + severity totals across completed runs.
-    let checked = 0;
-    let passed = 0;
-    const severity: Severity = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
-    for (const r of reports) {
-      checked += r.pointersChecked;
-      passed += r.passed;
-      const s = parseSeverity(r.issuesBySeverity);
-      severity.critical += s.critical ?? 0;
-      severity.high += s.high ?? 0;
-      severity.medium += s.medium ?? 0;
-      severity.low += s.low ?? 0;
-      severity.info += s.info ?? 0;
-    }
+    const checked = reports._sum.pointersChecked ?? 0;
+    const passed = reports._sum.passed ?? 0;
+    const severity = {
+      critical: reports._sum.sevCritical ?? 0,
+      high: reports._sum.sevHigh ?? 0,
+      medium: reports._sum.sevMedium ?? 0,
+      low: reports._sum.sevLow ?? 0,
+      info: reports._sum.sevInfo ?? 0,
+    };
     const passRate = checked > 0 ? Math.round((passed / checked) * 1000) / 10 : null;
 
     // Runs per day for the last 30 days (completed vs failed).

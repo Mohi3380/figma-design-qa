@@ -14,15 +14,9 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { SEVERITY_COLORS as SEV_COLORS, SEVERITY_ORDER } from '@/lib/severity';
 
 const TOOLTIP = { fontSize: 12, borderRadius: 8, border: '1px solid #cbd5e1', color: '#0f172a', background: '#fff' };
-const SEV_COLORS: Record<string, string> = {
-  critical: '#DC2626',
-  high: '#EA580C',
-  medium: '#D97706',
-  low: '#2563EB',
-  info: '#64748B',
-};
 
 export function SignupsArea({ data }: { data: { date: string; count: number }[] }) {
   const d = data.map((x) => ({ ...x, label: x.date.slice(5) }));
@@ -78,8 +72,7 @@ export function DonutChart({ data, colors }: { data: { name: string; value: numb
 }
 
 export function SeverityBar({ severity }: { severity: Record<string, number> }) {
-  const order = ['critical', 'high', 'medium', 'low', 'info'];
-  const data = order.map((k) => ({ name: k, value: severity[k] ?? 0 }));
+  const data = SEVERITY_ORDER.map((k) => ({ name: k, value: severity[k] ?? 0 }));
   if (!data.some((d) => d.value > 0)) return <div className="chart-empty">No issues recorded yet.</div>;
   return (
     <ResponsiveContainer width="100%" height={240}>

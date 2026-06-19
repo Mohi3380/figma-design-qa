@@ -105,6 +105,20 @@ function FigmaCard({ status, onChange }: { status: Status; onChange: () => Promi
     }
   }
 
+  async function connectFigma(e: React.MouseEvent<HTMLAnchorElement>) {
+    e.preventDefault();
+    // Refresh the session cookie right before this full-page navigation. The
+    // /figma/login → Figma → /figma/callback round-trip is guarded by the
+    // short-lived access_token cookie and can outlive it; unlike apiFetch, a
+    // raw navigation can't refresh-on-401. A fresh cookie avoids a 401 connect.
+    try {
+      await api.post('/auth/refresh');
+    } catch {
+      /* proceed — the current cookie may still be valid */
+    }
+    window.location.href = FIGMA_CONNECT_URL;
+  }
+
   if (f.connected) {
     return (
       <div className="conn-card connected">
@@ -136,7 +150,7 @@ function FigmaCard({ status, onChange }: { status: Status; onChange: () => Promi
       </p>
 
       {f.oauthConfigured && (
-        <a className="btn btn-primary" href={FIGMA_CONNECT_URL}>
+        <a className="btn btn-primary" href={FIGMA_CONNECT_URL} onClick={connectFigma}>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <circle cx="12" cy="12" r="9" />
             <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />

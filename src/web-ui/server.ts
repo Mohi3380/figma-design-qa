@@ -127,6 +127,10 @@ async function runViaSse(req: IncomingMessage, url: URL, res: ServerResponse, op
       figmaToken,
       figmaTokenScheme,
       anthropicKey: process.env.ANTHROPIC_API_KEY,
+      // This server binds to 127.0.0.1 and is the operator's own local tool
+      // (see the file header), whose whole purpose is QAing localhost/staging.
+      // Allow private targets here — link-local/metadata stay blocked regardless.
+      allowPrivateTargets: true,
       log: (message) => send('log', { message }),
     });
 
