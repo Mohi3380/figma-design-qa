@@ -40,7 +40,8 @@ const credentials = new CredentialsService(prisma, config);
 const loggerStub = { setContext() {}, warn() {}, info() {}, error() {}, debug() {} } as any;
 const engineStub = { loadConfig: async () => ({}), runPipeline: async () => ({}) } as any;
 const storageStub = { putFromPath: async () => {}, putBuffer: async () => {}, serve: async () => {} } as any;
-const qa = new QaService(prisma, engineStub, credentials, config, loggerStub, storageStub);
+const queueStub = { enabled: () => false } as any; // in-process mode for tests
+const qa = new QaService(prisma, engineStub, credentials, config, loggerStub, storageStub, queueStub);
 
 let userA: { id: string };
 let userB: { id: string };

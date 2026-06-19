@@ -12,6 +12,7 @@ import { StorageService } from '../storage/storage.service';
 import { isProduction } from '../config/secrets.util';
 import { parseSeverity } from '../common/stats.util';
 import { RunInput } from './dto/run-qa.dto';
+import { QaQueueService } from './qa-queue.service';
 
 /** A queued run: the job row, its owner, inputs, and its live SSE channel. */
 interface QueueEntry {
@@ -39,20 +40,47 @@ export class QaService implements OnModuleInit {
     private readonly config: ConfigService,
     private readonly logger: PinoLogger,
     private readonly storage: StorageService,
+    private readonly queueTransport: QaQueueService,
   ) {
     this.logger.setContext('QA');
   }
 
-  /**
-   * In-process jobs don't survive a restart, so any job left PENDING/RUNNING by
-   * a previous process is orphaned — fail it on boot so it isn't stuck forever.
-   */
   async onModuleInit(): Promise<void> {
+    if (this.queueTransport.enabled()) {
+      // Distributed mode: jobs live in Redis and run on (possibly separate)
+      // worker processes, so an API restart must NOT fail in-flight jobs.
+      // Optionally run a worker inside this process for single-box setups
+      // (set QA_INLINE_WORKER=false when you deploy dedicated worker processes).
+      if (this.config.get<string>('QA_INLINE_WORKER') !== 'false') {
+        await this.startInlineWorker();
+      }
+      return;
+    }
+    // In-process mode: jobs don't survive a restart, so any job left
+    // PENDING/RUNNING by a previous process is orphaned — fail it on boot.
     const { count } = await this.prisma.qAJob.updateMany({
       where: { status: { in: ['PENDING', 'RUNNING'] } },
       data: { status: 'FAILED', error: 'Interrupted by a server restart.', finishedAt: new Date() },
     });
     if (count > 0) this.logger.warn({ count }, 'Marked orphaned QA jobs as failed on boot');
+  }
+
+  /** Run a BullMQ worker in THIS process (single-box distributed setups). */
+  private async startInlineWorker(): Promise<void> {
+    await this.queueTransport.createWorker((job) => this.processQueuedJob(job.data), this.maxGlobal());
+    this.logger.info({ concurrency: this.maxGlobal() }, 'Inline QA worker started');
+  }
+
+  /** Process a job pulled from the distributed queue: run it and publish every
+   * progress event to the job's Redis channel (in order). Shared by the inline
+   * worker and the standalone worker entrypoint (worker.main.ts). */
+  async processQueuedJob(data: { jobId: string; userId: string; input: RunInput }): Promise<void> {
+    let chain: Promise<void> = Promise.resolve();
+    await this.executeJob(data.jobId, data.userId, data.input, (type, payload) => {
+      // Serialize publishes so events arrive in emit order.
+      chain = chain.then(() => this.queueTransport.publish(data.jobId, { type, data: payload }));
+    });
+    await chain;
   }
 
   private outputRoot(): string {
@@ -85,12 +113,16 @@ export class QaService implements OnModuleInit {
   /** Enqueue a QA job for a user and return its live progress stream. */
   run(userId: string, input: RunInput): Observable<MessageEvent> {
     const subject = new Subject<MessageEvent>();
-    void this.enqueue(userId, input, subject);
+    void this.dispatch(userId, input, subject);
     return subject.asObservable();
   }
 
-  private async enqueue(userId: string, input: RunInput, subject: Subject<MessageEvent>): Promise<void> {
-    let jobId: string;
+  /** Create the job row (shared by both modes); emits+completes on failure. */
+  private async createJobRow(
+    userId: string,
+    input: RunInput,
+    subject: Subject<MessageEvent>,
+  ): Promise<string | null> {
     try {
       const job = await this.prisma.qAJob.create({
         data: {
@@ -103,14 +135,43 @@ export class QaService implements OnModuleInit {
           status: 'PENDING',
         },
       });
-      jobId = job.id;
+      return job.id;
     } catch (err) {
       this.logger.warn({ err: String(err) }, 'Failed to enqueue QA job');
       subject.next({ type: 'error', data: { message: 'Could not start the QA run.' } } as MessageEvent);
       subject.complete();
+      return null;
+    }
+  }
+
+  private async dispatch(userId: string, input: RunInput, subject: Subject<MessageEvent>): Promise<void> {
+    const jobId = await this.createJobRow(userId, input, subject);
+    if (!jobId) return;
+
+    if (this.queueTransport.enabled()) {
+      // Distributed: the run may execute on another instance/worker. Subscribe
+      // to the job's Redis channel and relay events to this SSE client.
+      let unsub: () => Promise<void> = async () => {};
+      try {
+        unsub = await this.queueTransport.subscribe(jobId, (event) => {
+          subject.next({ type: event.type, data: event.data } as MessageEvent);
+          if (event.type === 'done' || event.type === 'error') {
+            subject.complete();
+            void unsub();
+          }
+        });
+        subject.next({ type: 'log', data: { message: 'Queued…', jobId } } as MessageEvent);
+        await this.queueTransport.add({ jobId, userId, input });
+      } catch (err) {
+        this.logger.warn({ err: String(err), jobId }, 'Failed to enqueue QA job to Redis');
+        subject.next({ type: 'error', data: { message: 'Could not start the QA run.', jobId } } as MessageEvent);
+        subject.complete();
+        void unsub();
+      }
       return;
     }
 
+    // In-process: run on this instance under the global + per-user caps.
     const entry: QueueEntry = { jobId, userId, input, subject };
     this.queue.push(entry);
     const ahead = this.queue.length - 1 + this.runningGlobal;
@@ -138,10 +199,30 @@ export class QaService implements OnModuleInit {
     }
   }
 
+  /** In-process worker entry: run the job, streaming events to its Subject. */
   private async runJob(entry: QueueEntry): Promise<void> {
-    const { jobId, userId, input, subject } = entry;
+    try {
+      await this.executeJob(entry.jobId, entry.userId, entry.input, (type, data) =>
+        entry.subject.next({ type, data } as MessageEvent),
+      );
+    } finally {
+      entry.subject.complete();
+    }
+  }
+
+  /**
+   * Run a single QA job end-to-end, streaming progress to `sink`. Mode-agnostic:
+   * the in-process path passes a Subject sink; the distributed worker passes a
+   * Redis-publish sink. Never throws (failures are reported via the sink).
+   */
+  async executeJob(
+    jobId: string,
+    userId: string,
+    input: RunInput,
+    sink: (type: string, data: unknown) => void,
+  ): Promise<void> {
     const emit = (type: string, data: unknown) => {
-      subject.next({ type, data } as MessageEvent);
+      sink(type, data);
       // Persist the latest stage so listJobs/getJob reflect progress even if the
       // SSE client disconnects. Fire-and-forget; log lines are infrequent stages.
       if (type === 'log') {
@@ -290,7 +371,6 @@ export class QaService implements OnModuleInit {
       // real concurrency past maxGlobal — bounded so a wedged run can't pin the
       // slot forever.
       if (pipelinePromise) await settleWithin(pipelinePromise, this.jobTimeoutMs());
-      subject.complete();
     }
   }
 
