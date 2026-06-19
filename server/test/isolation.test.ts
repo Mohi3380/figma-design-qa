@@ -39,7 +39,8 @@ const prisma = new PrismaService();
 const credentials = new CredentialsService(prisma, config);
 const loggerStub = { setContext() {}, warn() {}, info() {}, error() {}, debug() {} } as any;
 const engineStub = { loadConfig: async () => ({}), runPipeline: async () => ({}) } as any;
-const qa = new QaService(prisma, engineStub, credentials, config, loggerStub);
+const storageStub = { putFromPath: async () => {}, putBuffer: async () => {}, serve: async () => {} } as any;
+const qa = new QaService(prisma, engineStub, credentials, config, loggerStub, storageStub);
 
 let userA: { id: string };
 let userB: { id: string };

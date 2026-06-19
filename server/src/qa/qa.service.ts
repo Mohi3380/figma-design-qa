@@ -8,6 +8,7 @@ import path from 'node:path';
 import { PrismaService } from '../prisma/prisma.service';
 import { EngineService } from '../engine/engine.service';
 import { CredentialsService } from '../credentials/credentials.service';
+import { StorageService } from '../storage/storage.service';
 import { isProduction } from '../config/secrets.util';
 import { parseSeverity } from '../common/stats.util';
 import { RunInput } from './dto/run-qa.dto';
@@ -37,6 +38,7 @@ export class QaService implements OnModuleInit {
     private readonly credentials: CredentialsService,
     private readonly config: ConfigService,
     private readonly logger: PinoLogger,
+    private readonly storage: StorageService,
   ) {
     this.logger.setContext('QA');
   }
@@ -214,6 +216,22 @@ export class QaService implements OnModuleInit {
       });
       const result = await this.withTimeout(pipelinePromise, this.jobTimeoutMs(), 'QA run timed out.');
 
+      // Persist report artifacts through the storage layer (local disk by
+      // default, S3 when configured) and store the backend-agnostic KEY, so a
+      // different instance can serve the download in a multi-instance deploy.
+      const root = this.outputRoot();
+      const toKey = (abs: string) => path.relative(root, abs);
+      let htmlKey: string | null = null;
+      let pdfKey: string | null = null;
+      if (result.htmlPath) {
+        htmlKey = toKey(result.htmlPath);
+        await this.storage.putFromPath(htmlKey, result.htmlPath, 'text/html');
+      }
+      if (result.pdfPath) {
+        pdfKey = toKey(result.pdfPath);
+        await this.storage.putFromPath(pdfKey, result.pdfPath, 'application/pdf');
+      }
+
       const summary = result.report?.summary ?? {};
       const sev = parseSeverity(JSON.stringify(summary.issuesBySeverity ?? {}));
       await this.prisma.qAReport.create({
@@ -234,9 +252,10 @@ export class QaService implements OnModuleInit {
           sevLow: sev.low ?? 0,
           sevInfo: sev.info ?? 0,
           summary: JSON.stringify(summary),
-          htmlPath: result.htmlPath ?? null,
+          // Storage keys (relative), not absolute paths — resolved by StorageService.
+          htmlPath: htmlKey,
           jsonPath: result.jsonPath ?? null,
-          pdfPath: result.pdfPath ?? null,
+          pdfPath: pdfKey,
         },
       });
       await this.prisma.qAJob.update({
