@@ -1,9 +1,18 @@
 /**
  * Thin client for the NestJS backend. Sends cookies (credentials: 'include')
- * so the httpOnly access/refresh JWTs flow cross-origin in dev. On a 401 it
+ * so the httpOnly access/refresh JWTs flow with each request. On a 401 it
  * transparently tries one refresh, then retries the request.
+ *
+ * In the browser the base is RELATIVE ('/api' by default) so requests are
+ * same-origin and Next.js rewrites (see next.config.mjs) proxy them to the
+ * backend. That avoids CORS/mixed-content and keeps the auth cookies
+ * first-party — required when the app is served from a tunnel (ngrok) or any
+ * host other than the backend's own. Server components can't use a relative
+ * URL, so on the server we fall back to an absolute base.
  */
-export const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4300/api';
+const BROWSER_API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api';
+const SERVER_API_BASE = process.env.API_INTERNAL_URL || 'http://localhost:4300/api';
+export const API_BASE = typeof window === 'undefined' ? SERVER_API_BASE : BROWSER_API_BASE;
 
 export class ApiError extends Error {
   constructor(
