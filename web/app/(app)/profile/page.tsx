@@ -4,8 +4,11 @@ import { useRef, useState } from 'react';
 import { useAuth } from '@/components/AuthProvider';
 import { api, apiUpload } from '@/lib/api';
 
-const MAX_AVATAR = 2 * 1024 * 1024;
-const ALLOWED = ['image/jpeg', 'image/png', 'image/webp'];
+const MAX_AVATAR = 10 * 1024 * 1024;
+// HEIC files often report an empty or 'image/heic' type; the server validates
+// by real bytes and transcodes HEIC→JPEG, so we only block clearly-wrong types.
+const isBlocked = (type: string) => type !== '' && !type.startsWith('image/');
+const AVATAR_ACCEPT = 'image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif';
 
 function initials(name: string | null | undefined, email: string): string {
   const base = name?.trim() || email;
@@ -27,8 +30,8 @@ function AccountCard() {
     setMsg(null);
     const f = e.target.files?.[0];
     if (!f) return;
-    if (!ALLOWED.includes(f.type)) return setMsg({ ok: false, text: 'Use a JPG, PNG, or WebP image.' });
-    if (f.size > MAX_AVATAR) return setMsg({ ok: false, text: 'Image must be 2 MB or smaller.' });
+    if (isBlocked(f.type)) return setMsg({ ok: false, text: 'Please choose an image file.' });
+    if (f.size > MAX_AVATAR) return setMsg({ ok: false, text: 'Image must be 10 MB or smaller.' });
     setFile(f);
     setPreview(URL.createObjectURL(f));
   }
@@ -88,7 +91,7 @@ function AccountCard() {
               <circle cx="12" cy="13" r="4" />
             </svg>
           </button>
-          <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={pick} hidden />
+          <input ref={fileRef} type="file" accept={AVATAR_ACCEPT} onChange={pick} hidden />
         </div>
 
         <div className="account-body">
@@ -100,7 +103,7 @@ function AccountCard() {
 
           {file && (
             <div className="account-photo-save">
-              <span>New photo selected · JPG, PNG or WebP, up to 2 MB.</span>
+              <span>New photo selected · JPG, PNG, WebP or HEIC, up to 10 MB.</span>
               <button className="btn btn-primary" type="button" onClick={savePhoto} disabled={busy}>{busy ? 'Uploading…' : 'Save photo'}</button>
               <button className="btn btn-ghost" type="button" onClick={() => { setFile(null); setPreview(null); }}>Cancel</button>
             </div>

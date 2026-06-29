@@ -19,11 +19,11 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AdminGuard } from '../auth/admin.guard';
 import { StorageService } from '../storage/storage.service';
 import { randomToken } from '../common/crypto.util';
-import { detectImageExt, UNSUPPORTED_IMAGE_MESSAGE } from '../common/image.util';
+import { mimeForExt, toWebSafeImage, UNSUPPORTED_IMAGE_MESSAGE } from '../common/image.util';
 import { CreateTeamMemberDto, ReorderTeamDto, UpdateTeamMemberDto } from './dto/team.dto';
 
-// 2 MB limit; files land in the shared `avatars/` bucket served by the public
-// GET /users/avatars/:filename route.
+// 10 MB limit (HEIC originals run larger); files land in the shared `avatars/`
+// bucket served by the public GET /users/avatars/:filename route.
 interface UploadedImage {
   buffer: Buffer;
   mimetype: string;
@@ -65,14 +65,14 @@ export class AdminTeamController {
   // Upload an avatar image and get back a public URL to store on a member.
   // Decoupled from a member id so it works for both new and existing members.
   @Post('avatar')
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 2 * 1024 * 1024 } }))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
   async uploadAvatar(@UploadedFile() file?: UploadedImage) {
     if (!file) throw new BadRequestException('No file uploaded.');
-    // Trust the file's real bytes, not the browser-reported mimetype.
-    const ext = detectImageExt(file.buffer);
-    if (!ext) throw new BadRequestException(UNSUPPORTED_IMAGE_MESSAGE);
-    const filename = `${randomToken(16)}.${ext}`;
-    await this.storage.putBuffer(`avatars/${filename}`, file.buffer, file.mimetype);
+    // Detect by real bytes (not the browser mimetype) and transcode HEIC→JPEG.
+    const img = await toWebSafeImage(file.buffer);
+    if (!img) throw new BadRequestException(UNSUPPORTED_IMAGE_MESSAGE);
+    const filename = `${randomToken(16)}.${img.ext}`;
+    await this.storage.putBuffer(`avatars/${filename}`, img.buffer, mimeForExt(img.ext));
     const base = (this.config.get<string>('API_PUBLIC_URL') ?? 'http://localhost:4300/api').replace(/\/+$/, '');
     return { url: `${base}/users/avatars/${filename}` };
   }

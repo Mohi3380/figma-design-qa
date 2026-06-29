@@ -3,8 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, apiUpload } from '@/lib/api';
 
-const MAX_AVATAR = 2 * 1024 * 1024;
-const ALLOWED_AVATAR = ['image/jpeg', 'image/png', 'image/webp'];
+const MAX_AVATAR = 10 * 1024 * 1024;
+// HEIC files often report an empty or 'image/heic' type; the server validates
+// by real bytes and transcodes HEIC→JPEG, so we only block clearly-wrong types.
+const BLOCKED_AVATAR = (type: string) => type !== '' && !type.startsWith('image/');
+const AVATAR_ACCEPT = 'image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif';
 
 interface Member {
   id: string;
@@ -210,8 +213,8 @@ function MemberDrawer({ member, onClose, onSaved }: { member: Member | null; onC
     const f = e.target.files?.[0];
     e.target.value = ''; // allow re-selecting the same file
     if (!f) return;
-    if (!ALLOWED_AVATAR.includes(f.type)) return setErr('Use a JPG, PNG, or WebP image.');
-    if (f.size > MAX_AVATAR) return setErr('Image must be 2 MB or smaller.');
+    if (BLOCKED_AVATAR(f.type)) return setErr('Please choose an image file.');
+    if (f.size > MAX_AVATAR) return setErr('Image must be 10 MB or smaller.');
     setUploading(true);
     setErr('');
     try {
@@ -283,7 +286,7 @@ function MemberDrawer({ member, onClose, onSaved }: { member: Member | null; onC
                 )}
               </span>
               <div className="tm-uploader-actions">
-                <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={onPickAvatar} hidden />
+                <input ref={fileRef} type="file" accept={AVATAR_ACCEPT} onChange={onPickAvatar} hidden />
                 <button type="button" className="btn btn-ghost" onClick={() => fileRef.current?.click()} disabled={uploading || busy}>
                   {uploading ? 'Uploading…' : draft.avatarUrl ? 'Change photo' : 'Upload photo'}
                 </button>
@@ -292,7 +295,7 @@ function MemberDrawer({ member, onClose, onSaved }: { member: Member | null; onC
                 )}
               </div>
             </div>
-            <span className="tm-hint">JPG, PNG or WebP, up to 2 MB.</span>
+            <span className="tm-hint">JPG, PNG, WebP or HEIC, up to 10 MB.</span>
           </div>
           <label className="tm-field">
             <span>LinkedIn URL <small>(optional)</small></span>

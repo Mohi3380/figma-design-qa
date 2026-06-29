@@ -21,7 +21,7 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import { StorageService } from '../storage/storage.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { randomToken } from '../common/crypto.util';
-import { detectImageExt, UNSUPPORTED_IMAGE_MESSAGE } from '../common/image.util';
+import { mimeForExt, toWebSafeImage, UNSUPPORTED_IMAGE_MESSAGE } from '../common/image.util';
 
 interface UploadedImage {
   buffer: Buffer;
@@ -47,18 +47,18 @@ export class UsersController {
 
   @Post('me/avatar')
   @UseGuards(JwtAuthGuard)
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 2 * 1024 * 1024 } }))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
   async uploadAvatar(@CurrentUser() current: AuthUser, @UploadedFile() file?: UploadedImage) {
     if (!file) throw new BadRequestException('No file uploaded.');
-    // Trust the file's real bytes, not the browser-reported mimetype (a HEIC
-    // photo off an iPhone is reported as image/jpeg but won't render anywhere).
-    const ext = detectImageExt(file.buffer);
-    if (!ext) throw new BadRequestException(UNSUPPORTED_IMAGE_MESSAGE);
+    // Detect by real bytes (not the browser mimetype) and transcode HEIC→JPEG —
+    // an iPhone HEIC is reported as image/jpeg but won't render in any browser.
+    const img = await toWebSafeImage(file.buffer);
+    if (!img) throw new BadRequestException(UNSUPPORTED_IMAGE_MESSAGE);
     // Opaque filename — no userId prefix. The avatar route is public (so <img>
     // can load it), so a guessable, identity-revealing name would let anyone
     // enumerate avatars and correlate them to a user id.
-    const filename = `${randomToken(16)}.${ext}`;
-    await this.storage.putBuffer(`avatars/${filename}`, file.buffer, file.mimetype);
+    const filename = `${randomToken(16)}.${img.ext}`;
+    await this.storage.putBuffer(`avatars/${filename}`, img.buffer, mimeForExt(img.ext));
     const base = (this.config.get<string>('API_PUBLIC_URL') ?? 'http://localhost:4300/api').replace(/\/+$/, '');
     const user = await this.users.setAvatarUrl(current.id, `${base}/users/avatars/${filename}`);
     return { user: UsersService.toPublic(user) };
