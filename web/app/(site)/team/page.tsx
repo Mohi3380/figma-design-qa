@@ -106,7 +106,7 @@ export default async function TeamPage() {
                 <div className="avatar" style={{ background: AVATAR_GRADIENTS[i % AVATAR_GRADIENTS.length] }}>
                   {m.avatarUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={m.avatarUrl} alt={m.name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
+                    <img src={m.avatarUrl} alt={m.name} />
                   ) : (
                     initials(m.name)
                   )}

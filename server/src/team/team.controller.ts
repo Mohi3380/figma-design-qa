@@ -19,12 +19,11 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AdminGuard } from '../auth/admin.guard';
 import { StorageService } from '../storage/storage.service';
 import { randomToken } from '../common/crypto.util';
+import { detectImageExt, UNSUPPORTED_IMAGE_MESSAGE } from '../common/image.util';
 import { CreateTeamMemberDto, ReorderTeamDto, UpdateTeamMemberDto } from './dto/team.dto';
 
-// Same allow-list and 2 MB limit as user avatars; files land in the shared
-// `avatars/` bucket served by the public GET /users/avatars/:filename route.
-const AVATAR_MIME: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
-
+// 2 MB limit; files land in the shared `avatars/` bucket served by the public
+// GET /users/avatars/:filename route.
 interface UploadedImage {
   buffer: Buffer;
   mimetype: string;
@@ -69,8 +68,9 @@ export class AdminTeamController {
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 2 * 1024 * 1024 } }))
   async uploadAvatar(@UploadedFile() file?: UploadedImage) {
     if (!file) throw new BadRequestException('No file uploaded.');
-    const ext = AVATAR_MIME[file.mimetype];
-    if (!ext) throw new BadRequestException('Only JPG, PNG, or WebP images are allowed.');
+    // Trust the file's real bytes, not the browser-reported mimetype.
+    const ext = detectImageExt(file.buffer);
+    if (!ext) throw new BadRequestException(UNSUPPORTED_IMAGE_MESSAGE);
     const filename = `${randomToken(16)}.${ext}`;
     await this.storage.putBuffer(`avatars/${filename}`, file.buffer, file.mimetype);
     const base = (this.config.get<string>('API_PUBLIC_URL') ?? 'http://localhost:4300/api').replace(/\/+$/, '');

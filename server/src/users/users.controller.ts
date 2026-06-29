@@ -21,8 +21,7 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import { StorageService } from '../storage/storage.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { randomToken } from '../common/crypto.util';
-
-const ALLOWED: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+import { detectImageExt, UNSUPPORTED_IMAGE_MESSAGE } from '../common/image.util';
 
 interface UploadedImage {
   buffer: Buffer;
@@ -51,8 +50,10 @@ export class UsersController {
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 2 * 1024 * 1024 } }))
   async uploadAvatar(@CurrentUser() current: AuthUser, @UploadedFile() file?: UploadedImage) {
     if (!file) throw new BadRequestException('No file uploaded.');
-    const ext = ALLOWED[file.mimetype];
-    if (!ext) throw new BadRequestException('Only JPG, PNG, or WebP images are allowed.');
+    // Trust the file's real bytes, not the browser-reported mimetype (a HEIC
+    // photo off an iPhone is reported as image/jpeg but won't render anywhere).
+    const ext = detectImageExt(file.buffer);
+    if (!ext) throw new BadRequestException(UNSUPPORTED_IMAGE_MESSAGE);
     // Opaque filename — no userId prefix. The avatar route is public (so <img>
     // can load it), so a guessable, identity-revealing name would let anyone
     // enumerate avatars and correlate them to a user id.
