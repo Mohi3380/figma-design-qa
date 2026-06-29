@@ -1,4 +1,4 @@
-# KODERLABS Design QA
+# Pixparity
 
 Compare a **Figma design** against a **live web app** and get a severity‑graded report of every visual mismatch — color, typography, spacing, icons, text and layout — with side‑by‑side evidence, optional **Claude vision** adjudication, and a PDF.
 

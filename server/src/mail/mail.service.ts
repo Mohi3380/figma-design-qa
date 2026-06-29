@@ -18,7 +18,7 @@ export class MailService {
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext('Mail');
-    this.from = this.config.get<string>('MAIL_FROM') ?? 'KODERLABS Design QA <no-reply@koderlabs.local>';
+    this.from = this.config.get<string>('MAIL_FROM') ?? 'Pixparity <no-reply@koderlabs.local>';
 
     const host = this.config.get<string>('SMTP_HOST');
     const user = this.config.get<string>('SMTP_USER');
@@ -47,16 +47,16 @@ export class MailService {
   async sendVerificationEmail(to: string, link: string): Promise<void> {
     await this.send(
       to,
-      'Verify your KODERLABS Design QA email',
+      'Verify your Pixparity email',
       `Confirm your email by opening: ${link}`,
-      `<p>Welcome to KODERLABS Design QA.</p><p><a href="${link}">Verify your email</a></p><p>${link}</p>`,
+      `<p>Welcome to Pixparity.</p><p><a href="${link}">Verify your email</a></p><p>${link}</p>`,
     );
   }
 
   async sendPasswordResetEmail(to: string, link: string): Promise<void> {
     await this.send(
       to,
-      'Reset your KODERLABS Design QA password',
+      'Reset your Pixparity password',
       `Reset your password by opening: ${link} (expires in 1 hour)`,
       `<p>We received a request to reset your password.</p><p><a href="${link}">Reset password</a></p><p>${link}</p><p>This link expires in 1 hour. If you didn't request it, ignore this email.</p>`,
     );

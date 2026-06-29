@@ -71,7 +71,7 @@ export default function Home() {
               Catch every <span className="grad">design&nbsp;drift</span> before it ships.
             </h1>
             <p className="lead">
-              KODERLABS Design QA compares your Figma design against the live app and reports every
+              Pixparity compares your Figma design against the live app and reports every
               mismatch — color, typography, spacing, icons, text and layout — severity-graded, with
               side-by-side evidence.
             </p>

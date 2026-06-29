@@ -1,4 +1,4 @@
-// KODERLABS Design QA — data model.
+// Pixparity — data model.
 // Local dev uses SQLite (a single file, zero setup). Status/type fields are
 // plain strings and JSON is stored as text, so this same schema also works on
 // Postgres later — switch `provider` to "postgresql" and set DATABASE_URL.

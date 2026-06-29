@@ -69,7 +69,7 @@ export default function AppShell({
     <div className="app-shell">
       <aside className={`app-sidebar${navOpen ? ' open' : ''}`}>
         <Link className="app-brand" href={brandHref} onClick={() => setNavOpen(false)}>
-          <span className="logo">KL</span> <span>KODERLABS Design QA</span>
+          <span className="logo">Px</span> <span>Pixparity</span>
         </Link>
         {isAdminArea && <div className="app-nav-label">Admin</div>}
         <nav className="app-nav">
@@ -142,7 +142,7 @@ export default function AppShell({
               </svg>
             </div>
             <h3 id="logout-title">Log out?</h3>
-            <p>You&apos;ll be signed out of KODERLABS Design QA on this device.</p>
+            <p>You&apos;ll be signed out of Pixparity on this device.</p>
             <div className="modal-actions">
               <button type="button" className="btn btn-ghost" onClick={() => setLogoutOpen(false)} disabled={loggingOut}>Cancel</button>
               <button type="button" className="btn btn-danger" onClick={onLogout} disabled={loggingOut}>{loggingOut ? 'Logging out…' : 'Log out'}</button>

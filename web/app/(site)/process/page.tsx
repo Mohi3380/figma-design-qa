@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Our Process',
   description:
-    'How KODERLABS Design QA works: two inputs in, one severity-graded report out — read the design, capture the live site, match, diff, AI double-check, and deliver the report.',
+    'How Pixparity works: two inputs in, one severity-graded report out — read the design, capture the live site, match, diff, AI double-check, and deliver the report.',
   alternates: { canonical: '/process' },
 };
 

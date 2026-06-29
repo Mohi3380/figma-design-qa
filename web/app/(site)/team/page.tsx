@@ -4,7 +4,7 @@ import { API_BASE } from '@/lib/api';
 export const metadata: Metadata = {
   title: 'Our Team',
   description:
-    'Meet the team behind KODERLABS Design QA — the engineers, designers and QA specialists building automated Figma-vs-live visual quality checks.',
+    'Meet the team behind Pixparity — the engineers, designers and QA specialists building automated Figma-vs-live visual quality checks.',
   alternates: { canonical: '/team' },
 };
 

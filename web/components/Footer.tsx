@@ -26,11 +26,11 @@ export default function Footer() {
             </div>
           </div>
           <div className="foot-bottom">
-            <span>KODERLABS Design QA © 2026 · All Rights Reserved</span>
+            <span>Pixparity © 2026 · All Rights Reserved</span>
           </div>
         </div>
         <div className="foot-right">
-          <div className="foot-brand"><span className="logo">KL</span> KODERLABS Design QA</div>
+          <div className="foot-brand"><span className="logo">Px</span> Pixparity</div>
           <h3 className="foot-cta-title">Get In Touch.</h3>
           <div className="foot-cta-btns">
             <a className="foot-btn outline" href="mailto:mohit.kumar@koderlabs.com">Contact Us</a>

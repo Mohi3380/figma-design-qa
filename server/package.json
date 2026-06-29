@@ -1,8 +1,8 @@
 {
-  "name": "koderlabs-design-qa-server",
+  "name": "pixparity-design-qa-server",
   "version": "0.1.0",
   "private": true,
-  "description": "NestJS backend for KODERLABS Design QA — auth, QA jobs, reports.",
+  "description": "NestJS backend for Pixparity — auth, QA jobs, reports.",
   "scripts": {
     "build": "nest build",
     "start": "node dist/main.js",
