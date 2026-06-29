@@ -17,6 +17,7 @@ import { FigmaModule } from './figma/figma.module';
 import { QaModule } from './qa/qa.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { AdminModule } from './admin/admin.module';
+import { TeamModule } from './team/team.module';
 
 const isDev = process.env.NODE_ENV !== 'production';
 
@@ -43,6 +44,7 @@ const isDev = process.env.NODE_ENV !== 'production';
     QaModule,
     DashboardModule,
     AdminModule,
+    TeamModule,
   ],
   controllers: [HealthController],
   providers: [

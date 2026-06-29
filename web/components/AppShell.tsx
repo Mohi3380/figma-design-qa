@@ -27,6 +27,11 @@ const ADMIN_NAV: NavItem[] = [
     label: 'User Management',
     icon: <><circle cx="9" cy="8" r="3.5" /><path d="M2 21a7 7 0 0 1 14 0M17 11a3 3 0 0 0 0-6M23 21a6 6 0 0 0-7-5.9" /></>,
   },
+  {
+    href: '/admin/team',
+    label: 'Team Page',
+    icon: <><circle cx="12" cy="7" r="4" /><path d="M5.5 21a6.5 6.5 0 0 1 13 0" /></>,
+  },
 ];
 
 function initials(user: { name?: string | null; email: string }): string {

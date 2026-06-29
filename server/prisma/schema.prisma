@@ -106,6 +106,23 @@ model QAJob {
   @@index([userId, createdAt])
 }
 
+// A person shown on the public "Our Team" page (/team). Editable by admins
+// via /api/admin/team; the public page reads the visible rows from /api/team.
+model TeamMember {
+  id          String   @id @default(cuid())
+  name        String
+  role        String
+  avatarUrl   String? // optional photo; falls back to gradient + initials
+  linkedinUrl String?
+  xUrl        String?
+  sortOrder   Int      @default(0) // ascending display order on the page
+  visible     Boolean  @default(true) // hide without deleting
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([sortOrder])
+}
+
 model QAReport {
   id              String   @id @default(cuid())
   jobId           String   @unique
