@@ -735,6 +735,20 @@
   .tm-field input:focus { outline: none; border-color: var(--blue); background: var(--input-bg-focus); box-shadow: 0 0 0 3px rgba(23,99,230,.15); }
   .tm-check { display: flex; align-items: center; gap: 9px; font-size: 13.5px; margin: 4px 0 4px; cursor: pointer; user-select: none; }
   .tm-check input { width: 16px; height: 16px; accent-color: var(--blue); }
+  .tm-uploader { display: flex; align-items: center; gap: 14px; }
+  .tm-avatar { width: 56px; height: 56px; border-radius: 50%; flex: none; display: inline-flex; align-items: center; justify-content: center; font-weight: 800; font-size: 16px; color: #fff; background: linear-gradient(135deg, var(--blue), var(--blue-dark)); overflow: hidden; }
+  .tm-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .tm-uploader-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .tm-uploader-actions .btn { padding: 8px 14px; }
+  .tm-hint { display: block; margin-top: 8px; color: var(--muted); font-size: 12px; }
+
+  /* 404 / not-found */
+  .nf { min-height: 62vh; display: flex; align-items: center; justify-content: center; padding: 64px 22px; }
+  .nf-card { text-align: center; max-width: 540px; }
+  .nf-code { font-size: 104px; font-weight: 900; line-height: 1; letter-spacing: -3px; background: linear-gradient(135deg, var(--blue), var(--blue-dark)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; }
+  .nf-title { margin: 16px 0 10px; font-size: 27px; letter-spacing: -.5px; }
+  .nf-text { color: var(--muted); font-size: 15px; line-height: 1.65; margin: 0 auto 26px; max-width: 460px; }
+  .nf-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
 
   /* ===== User dashboard onboarding (zero-state) ===== */
   .dash-getstarted { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: stretch; }

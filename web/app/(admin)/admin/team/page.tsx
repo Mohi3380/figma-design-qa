@@ -1,7 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { api } from '@/lib/api';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { api, apiUpload } from '@/lib/api';
+
+const MAX_AVATAR = 2 * 1024 * 1024;
+const ALLOWED_AVATAR = ['image/jpeg', 'image/png', 'image/webp'];
 
 interface Member {
   id: string;
@@ -196,9 +199,31 @@ function MemberDrawer({ member, onClose, onSaved }: { member: Member | null; onC
   );
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   function set<K extends keyof Draft>(key: K, value: Draft[K]) {
     setDraft((d) => ({ ...d, [key]: value }));
+  }
+
+  async function onPickAvatar(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    e.target.value = ''; // allow re-selecting the same file
+    if (!f) return;
+    if (!ALLOWED_AVATAR.includes(f.type)) return setErr('Use a JPG, PNG, or WebP image.');
+    if (f.size > MAX_AVATAR) return setErr('Image must be 2 MB or smaller.');
+    setUploading(true);
+    setErr('');
+    try {
+      const form = new FormData();
+      form.append('file', f);
+      const { url } = await apiUpload<{ url: string }>('/admin/team/avatar', form);
+      set('avatarUrl', url);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Upload failed.');
+    } finally {
+      setUploading(false);
+    }
   }
 
   async function save() {
@@ -246,10 +271,29 @@ function MemberDrawer({ member, onClose, onSaved }: { member: Member | null; onC
             <span>Role</span>
             <input value={draft.role} onChange={(e) => set('role', e.target.value)} placeholder="Head of Engineering" />
           </label>
-          <label className="tm-field">
-            <span>Avatar image URL <small>(optional — falls back to initials)</small></span>
-            <input value={draft.avatarUrl} onChange={(e) => set('avatarUrl', e.target.value)} placeholder="https://…/photo.jpg" />
-          </label>
+          <div className="tm-field">
+            <span>Photo <small>(optional — falls back to initials)</small></span>
+            <div className="tm-uploader">
+              <span className="tm-avatar">
+                {draft.avatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={draft.avatarUrl} alt="" />
+                ) : (
+                  initials(draft.name || 'Team Member')
+                )}
+              </span>
+              <div className="tm-uploader-actions">
+                <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={onPickAvatar} hidden />
+                <button type="button" className="btn btn-ghost" onClick={() => fileRef.current?.click()} disabled={uploading || busy}>
+                  {uploading ? 'Uploading…' : draft.avatarUrl ? 'Change photo' : 'Upload photo'}
+                </button>
+                {draft.avatarUrl && (
+                  <button type="button" className="btn btn-ghost" onClick={() => set('avatarUrl', '')} disabled={uploading || busy}>Remove</button>
+                )}
+              </div>
+            </div>
+            <span className="tm-hint">JPG, PNG or WebP, up to 2 MB.</span>
+          </div>
           <label className="tm-field">
             <span>LinkedIn URL <small>(optional)</small></span>
             <input value={draft.linkedinUrl} onChange={(e) => set('linkedinUrl', e.target.value)} placeholder="https://linkedin.com/in/…" />
@@ -265,7 +309,7 @@ function MemberDrawer({ member, onClose, onSaved }: { member: Member | null; onC
 
           <div className="drawer-actions row">
             <button type="button" className="btn btn-ghost" onClick={onClose} disabled={busy}>Cancel</button>
-            <button type="button" className="btn btn-primary" onClick={save} disabled={busy}>
+            <button type="button" className="btn btn-primary" onClick={save} disabled={busy || uploading}>
               {busy ? 'Saving…' : member ? 'Save changes' : 'Add member'}
             </button>
           </div>
