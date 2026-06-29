@@ -33,11 +33,11 @@ export default function Footer() {
           <div className="foot-brand"><span className="logo">Px</span> Pixparity</div>
           <h3 className="foot-cta-title">Get In Touch.</h3>
           <div className="foot-cta-btns">
-            <a className="foot-btn outline" href="mailto:mohit.kumar@koderlabs.com">Contact Us</a>
+            <a className="foot-btn outline" href="mailto:ladhermohit44@gmail.com">Contact Us</a>
             <Link className="foot-btn solid" href="/#run">Start a QA</Link>
           </div>
           <div className="foot-contact">
-            <a href="mailto:mohit.kumar@koderlabs.com"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" /><path d="m22 6-10 7L2 6" /></svg> mohit.kumar@koderlabs.com</a>
+            <a href="mailto:ladhermohit44@gmail.com"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" /><path d="m22 6-10 7L2 6" /></svg> ladhermohit44@gmail.com</a>
           </div>
           <div className="foot-social">
             <a href="#" aria-label="LinkedIn"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M4.98 3.5C4.98 4.88 3.87 6 2.5 6S0 4.88 0 3.5 1.12 1 2.5 1s2.48 1.12 2.48 2.5zM0 8h5v16H0V8zm7.5 0H12v2.2h.07c.63-1.2 2.17-2.47 4.46-2.47C21.4 7.73 24 10 24 14.6V24h-5v-8.4c0-2-.04-4.6-2.8-4.6-2.8 0-3.2 2.18-3.2 4.44V24h-5V8z" /></svg></a>

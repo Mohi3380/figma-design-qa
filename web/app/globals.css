@@ -311,8 +311,11 @@
 
   /* ---- Our Team page ---- */
   .team { padding: 48px 0 8px; }
-  .team-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 22px; margin-top: 8px; }
-  .member { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 24px 20px; text-align: center; box-shadow: var(--shadow-sm); transition: transform .15s, box-shadow .15s; }
+  /* Flex (not fixed columns) so the row adapts to the member count: a single
+     member centers at a sensible width instead of being stuck in a 4-col grid,
+     and adding members wraps + resizes automatically. */
+  .team-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 22px; margin-top: 8px; }
+  .member { flex: 1 1 220px; max-width: 280px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 24px 20px; text-align: center; box-shadow: var(--shadow-sm); transition: transform .15s, box-shadow .15s; }
   .member:hover { transform: translateY(-3px); box-shadow: var(--shadow); }
   .avatar { width: 84px; height: 84px; border-radius: 50%; margin: 0 auto 14px; display: grid; place-items: center; font-size: 27px; font-weight: 800; color: #fff; letter-spacing: .5px; overflow: hidden; }
   .avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -330,9 +333,7 @@
   .team-cta h2 { margin: 0 0 8px; font-size: 26px; font-weight: 800; }
   .team-cta p { margin: 0 auto 22px; max-width: 520px; color: #d6e4ff; }
   .team-cta .btn-primary { background: #fff; color: var(--blue-dark); }
-  @media (max-width: 980px) { .team-grid { grid-template-columns: repeat(3, 1fr); } .team-values { grid-template-columns: 1fr; } }
-  @media (max-width: 720px) { .team-grid { grid-template-columns: repeat(2, 1fr); } }
-  @media (max-width: 440px) { .team-grid { grid-template-columns: 1fr; } }
+  @media (max-width: 980px) { .team-values { grid-template-columns: 1fr; } }
 
   /* ---- Connections panel (per-user Figma + Anthropic credentials) ---- */
   .conn-panel { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 22px 0 28px; }
