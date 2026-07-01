@@ -1,23 +1,27 @@
 {
-  "name": "koderlabs-design-qa-server",
+  "name": "pixparity-design-qa-server",
   "version": "0.1.0",
   "private": true,
-  "description": "NestJS backend for KODERLABS Design QA — auth, QA jobs, reports.",
+  "description": "NestJS backend for Pixparity — auth, QA jobs, reports.",
   "scripts": {
     "build": "nest build",
     "start": "node dist/main.js",
     "start:dev": "nest start --watch",
     "start:prod": "node dist/main.js",
+    "start:worker": "node dist/worker.main.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
-    "db:seed": "ts-node prisma/seed.ts"
+    "db:seed": "ts-node prisma/seed.ts",
+    "test": "vitest run"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1072.0",
+    "@aws-sdk/s3-request-presigner": "^3.1072.0",
     "@nestjs/common": "^11.0.0",
     "@nestjs/config": "^4.0.0",
     "@nestjs/core": "^11.0.0",
@@ -27,14 +31,17 @@
     "@nestjs/throttler": "^6.4.0",
     "@prisma/client": "^6.2.1",
     "bcryptjs": "^2.4.3",
-    "nodemailer": "^9.0.0",
-    "passport": "^0.7.0",
-    "passport-google-oauth20": "^2.0.0",
+    "bullmq": "^5.79.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
     "cookie-parser": "^1.4.7",
+    "heic-convert": "^2.1.0",
     "helmet": "^8.0.0",
+    "ioredis": "^5.11.1",
     "nestjs-pino": "^4.3.0",
+    "nodemailer": "^9.0.0",
+    "passport": "^0.7.0",
+    "passport-google-oauth20": "^2.0.0",
     "pino-http": "^10.3.0",
     "pino-pretty": "^13.0.0",
     "reflect-metadata": "^0.2.2",
@@ -52,6 +59,7 @@
     "@types/passport-google-oauth20": "^2.0.16",
     "prisma": "^6.2.1",
     "ts-node": "^10.9.2",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.9"
   }
 }

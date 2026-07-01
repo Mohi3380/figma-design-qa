@@ -15,23 +15,23 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:4200';
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: 'KODERLABS Design QA — Figma vs. live app verification',
-    template: '%s · KODERLABS Design QA',
+    default: 'Pixparity — Figma vs. live app verification',
+    template: '%s · Pixparity',
   },
   description:
-    'KODERLABS Design QA compares a Figma design against your live app and reports every visual mismatch — color, typography, spacing, icons, text and layout — severity-graded with evidence.',
-  keywords: ['design QA', 'Figma', 'visual regression', 'design comparison', 'pixel diff', 'KODERLABS'],
-  authors: [{ name: 'KODERLABS' }],
+    'Pixparity compares a Figma design against your live app and reports every visual mismatch — color, typography, spacing, icons, text and layout — severity-graded with evidence.',
+  keywords: ['design QA', 'Figma', 'visual regression', 'design comparison', 'pixel diff', 'Pixparity'],
+  authors: [{ name: 'Pixparity' }],
   openGraph: {
     type: 'website',
-    siteName: 'KODERLABS Design QA',
-    title: 'KODERLABS Design QA',
+    siteName: 'Pixparity',
+    title: 'Pixparity',
     description: 'Compare a Figma design against your live app and get a severity-graded report with evidence.',
-    images: [{ url: '/hero.jpg', width: 1200, height: 800, alt: 'KODERLABS Design QA' }],
+    images: [{ url: '/hero.jpg', width: 1200, height: 800, alt: 'Pixparity' }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'KODERLABS Design QA',
+    title: 'Pixparity',
     description: 'Compare a Figma design against your live app and get a severity-graded report with evidence.',
     images: ['/hero.jpg'],
   },
@@ -41,21 +41,23 @@ export const metadata: Metadata = {
 const JSON_LD = {
   '@context': 'https://schema.org',
   '@type': 'SoftwareApplication',
-  name: 'KODERLABS Design QA',
+  name: 'Pixparity',
   applicationCategory: 'DeveloperApplication',
   operatingSystem: 'Web',
   description:
     'Compare a Figma design against your live app and report every visual mismatch — color, typography, spacing, icons, text and layout — severity-graded with evidence.',
   offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
-  publisher: { '@type': 'Organization', name: 'KODERLABS', url: 'https://koderlabs.com' },
+  publisher: { '@type': 'Organization', name: 'Pixparity', url: 'https://koderlabs.com' },
 };
 
 export const viewport: Viewport = {
   themeColor: '#1763E6',
 };
 
-/* Apply saved/system theme before first paint to avoid a flash. */
-const THEME_INIT = `(function(){try{var s=localStorage.getItem('kl-theme');var d=s?s==='dark':(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches);if(d)document.documentElement.setAttribute('data-theme','dark');}catch(e){}})();`;
+/* Before first paint: apply saved/system theme (no flash) and mark that JS is
+ * active, so scroll-reveal animations only hide content when they can reveal it
+ * (no-JS users and crawlers see everything). */
+const THEME_INIT = `(function(){try{document.documentElement.classList.add('js');var s=localStorage.getItem('kl-theme');var d=s?s==='dark':(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches);if(d)document.documentElement.setAttribute('data-theme','dark');}catch(e){}})();`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

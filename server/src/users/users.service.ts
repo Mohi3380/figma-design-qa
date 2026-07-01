@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { User } from '@prisma/client';
+import { plainToInstance } from 'class-transformer';
 import { PrismaService } from '../prisma/prisma.service';
+import { PublicUserDto } from './dto/public-user.dto';
 
 @Injectable()
 export class UsersService {
@@ -39,16 +41,9 @@ export class UsersService {
     return this.prisma.user.update({ where: { id }, data: { avatarUrl } });
   }
 
-  /** Public-safe view (no password hash). */
-  static toPublic(user: User) {
-    return {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      emailVerified: user.emailVerified,
-      avatarUrl: user.avatarUrl,
-      hasPassword: Boolean(user.passwordHash),
-      createdAt: user.createdAt,
-    };
+  /** Public-safe view — a strict whitelist (see PublicUserDto). Anything not
+   * explicitly exposed there is dropped, so new sensitive columns can't leak. */
+  static toPublic(user: User): PublicUserDto {
+    return plainToInstance(PublicUserDto, user, { excludeExtraneousValues: true });
   }
 }

@@ -1,15 +1,8 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { API_BASE } from '@/lib/api';
-
-const SEV: Record<string, string> = {
-  critical: '#DC2626',
-  high: '#EA580C',
-  medium: '#D97706',
-  low: '#2563EB',
-  info: '#64748B',
-};
+import { API_BASE, api } from '@/lib/api';
+import { SEVERITY_COLORS as SEV, SEVERITY_ORDER as SEV_ORDER } from '@/lib/severity';
 
 const STEPS = [
   { id: 'extract', lbl: 'Extract', match: ['Fetching node', 'Normalizing', 'Rendering frame', 'Parsed MCP'] },
@@ -19,8 +12,6 @@ const STEPS = [
   { id: 'vision', lbl: 'Adjudicate', match: ['Adjudicating', 'adjudicated', 'Skipping vision'] },
   { id: 'report', lbl: 'Report', match: [] as string[] },
 ];
-
-const SEV_ORDER = ['critical', 'high', 'medium', 'low', 'info'] as const;
 
 interface Summary {
   pointersChecked: number;
@@ -52,6 +43,9 @@ export default function QAForm({ onComplete }: { onComplete?: () => void }) {
   const [done, setDone] = useState<DoneData | null>(null);
   const [reportSrc, setReportSrc] = useState('');
   const esRef = useRef<EventSource | null>(null);
+  // Captured from stream events so we can recover the result by polling if the
+  // live connection drops mid-run (see the error handler below).
+  const jobIdRef = useRef<string | null>(null);
 
   function advance(msg: string) {
     for (let i = STEPS.length - 1; i >= 0; i--) {
@@ -62,7 +56,66 @@ export default function QAForm({ onComplete }: { onComplete?: () => void }) {
     }
   }
 
-  function onSubmit(e: React.FormEvent) {
+  function showDone(d: DoneData) {
+    setStep(STEPS.length);
+    setDone(d);
+    setReportSrc(`${API_BASE}/qa/jobs/${d.jobId}/report.html`);
+  }
+
+  /** A finished QA job's persisted view (sanitized — no filesystem paths). */
+  interface JobView {
+    status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
+    error: string | null;
+    report: {
+      frameName: string | null;
+      viewport: number | null;
+      pointersChecked: number;
+      passed: number;
+      failed: number;
+      matched: number;
+      issuesBySeverity: Record<string, number> | null;
+      hasPdf: boolean;
+    } | null;
+  }
+
+  // When the live SSE connection drops, the server job often keeps running and
+  // finishes fine. Poll its persisted status before declaring failure so a
+  // transient blip doesn't lose a completed run. Returns true once resolved.
+  async function recoverFromJob(jobId: string): Promise<boolean> {
+    for (let i = 0; i < 8; i++) {
+      let job: JobView;
+      try {
+        job = await api.get<JobView>(`/qa/jobs/${jobId}`);
+      } catch {
+        return false;
+      }
+      if (job.status === 'COMPLETED' && job.report) {
+        const r = job.report;
+        showDone({
+          jobId,
+          summary: {
+            pointersChecked: r.pointersChecked,
+            passed: r.passed,
+            failed: r.failed,
+            issuesBySeverity: r.issuesBySeverity ?? {},
+          },
+          matching: { matched: r.matched },
+          viewport: r.viewport ?? 0,
+          frameName: r.frameName ?? '',
+          hasPdf: r.hasPdf,
+        });
+        return true;
+      }
+      if (job.status === 'FAILED') {
+        setErr(job.error || 'QA run failed.');
+        return true;
+      }
+      await new Promise((res) => setTimeout(res, 1500));
+    }
+    return false;
+  }
+
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!figma.trim() || !target.trim()) {
       setErr('Enter both a Figma URL and an App URL.');
@@ -74,6 +127,17 @@ export default function QAForm({ onComplete }: { onComplete?: () => void }) {
     setShowProgress(true);
     setLines([]);
     setStep(0);
+    jobIdRef.current = null;
+
+    // The SSE stream authenticates via the access_token cookie and, being an
+    // EventSource, cannot transparently refresh-on-401 the way apiFetch does.
+    // Proactively refresh first so a stale short-lived token doesn't 401 the
+    // connection right as the run starts.
+    try {
+      await api.post('/auth/refresh');
+    } catch {
+      /* keep going — the current token may still be valid */
+    }
 
     const params = new URLSearchParams({
       figma: figma.trim(),
@@ -86,24 +150,43 @@ export default function QAForm({ onComplete }: { onComplete?: () => void }) {
     const es = new EventSource(`${API_BASE}/qa/run?` + params.toString(), { withCredentials: true });
     esRef.current = es;
     es.addEventListener('log', (ev) => {
-      const msg = JSON.parse((ev as MessageEvent).data).message as string;
-      setLines((l) => [...l, { text: msg }]);
-      advance(msg);
+      const d = JSON.parse((ev as MessageEvent).data) as { message: string; jobId?: string };
+      if (d.jobId) jobIdRef.current = d.jobId;
+      setLines((l) => [...l, { text: d.message }]);
+      advance(d.message);
     });
     es.addEventListener('error', (ev) => {
       const data = (ev as MessageEvent).data;
-      if (data) setErr(JSON.parse(data).message);
-      else setErr('Connection lost before the QA finished.');
+      // Always close so the browser doesn't auto-reconnect — a reconnect would
+      // re-hit /qa/run and start a DUPLICATE job.
       es.close();
-      setRunning(false);
-      onComplete?.();
+      if (data) {
+        // Application-level error emitted by the backend — a real failure.
+        setErr(JSON.parse(data).message);
+        setRunning(false);
+        onComplete?.();
+        return;
+      }
+      // Native transport error (network blip / stream ended without 'done').
+      // The server job may still be running, so try to recover its result.
+      const jobId = jobIdRef.current;
+      if (!jobId) {
+        setErr('Connection lost before the QA finished.');
+        setRunning(false);
+        onComplete?.();
+        return;
+      }
+      void recoverFromJob(jobId).then((resolved) => {
+        if (!resolved) setErr('Lost the live connection — check Run history for the result.');
+        setRunning(false);
+        onComplete?.();
+      });
     });
     es.addEventListener('done', (ev) => {
       const d = JSON.parse((ev as MessageEvent).data) as DoneData;
-      setStep(STEPS.length);
+      jobIdRef.current = d.jobId;
       setLines((l) => [...l, { text: 'done', ok: true }]);
-      setDone(d);
-      setReportSrc(`${API_BASE}/qa/jobs/${d.jobId}/report.html`);
+      showDone(d);
       es.close();
       setRunning(false);
       onComplete?.();

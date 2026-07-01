@@ -15,11 +15,15 @@ import { QaService } from './qa.service';
 import { RunQaDto } from './dto/run-qa.dto';
 import { JwtAuthGuard, AuthUser } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
+import { StorageService } from '../storage/storage.service';
 
 @Controller('qa')
 @UseGuards(JwtAuthGuard)
 export class QaController {
-  constructor(private readonly qa: QaService) {}
+  constructor(
+    private readonly qa: QaService,
+    private readonly storage: StorageService,
+  ) {}
 
   // A QA run launches a headless browser and makes outbound requests, so it's
   // expensive and an SSRF-amplification vector — keep it tightly throttled
@@ -48,13 +52,13 @@ export class QaController {
 
   @Get('jobs/:id/report.html')
   async reportHtml(@CurrentUser() user: AuthUser, @Param('id') id: string, @Res() res: Response) {
-    const file = await this.qa.getReportFile(user.id, id, 'html');
-    res.sendFile(file);
+    const key = await this.qa.getReportFile(user.id, id, 'html');
+    await this.storage.serve(res, key);
   }
 
   @Get('jobs/:id/report.pdf')
   async reportPdf(@CurrentUser() user: AuthUser, @Param('id') id: string, @Res() res: Response) {
-    const file = await this.qa.getReportFile(user.id, id, 'pdf');
-    res.sendFile(file);
+    const key = await this.qa.getReportFile(user.id, id, 'pdf');
+    await this.storage.serve(res, key);
   }
 }

@@ -1,8 +1,6 @@
 import {
   Controller,
   Get,
-  HttpCode,
-  Post,
   Req,
   Res,
   ServiceUnavailableException,
@@ -13,6 +11,7 @@ import type { Request, Response } from 'express';
 import { FigmaService } from './figma.service';
 import { JwtAuthGuard, AuthUser } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
+import { cookieOptions } from '../auth/cookies';
 import { randomToken } from '../common/crypto.util';
 
 @Controller('figma')
@@ -23,24 +22,13 @@ export class FigmaController {
     private readonly config: ConfigService,
   ) {}
 
-  @Get('status')
-  status(@CurrentUser() user: AuthUser) {
-    return this.figma.getStatus(user.id);
-  }
-
   @Get('login')
   login(@Res() res: Response) {
     if (!this.figma.isConfigured()) {
       throw new ServiceUnavailableException('Figma connect is not configured.');
     }
     const state = randomToken(16);
-    res.cookie('figma_oauth_state', state, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 600_000,
-    });
+    res.cookie('figma_oauth_state', state, cookieOptions(600));
     return res.redirect(this.figma.buildAuthorizeUrl(state));
   }
 
@@ -61,12 +49,5 @@ export class FigmaController {
     } catch {
       return res.redirect(`${appUrl}/dashboard?figma=error`);
     }
-  }
-
-  @Post('disconnect')
-  @HttpCode(200)
-  async disconnect(@CurrentUser() user: AuthUser) {
-    await this.figma.disconnect(user.id);
-    return { ok: true };
   }
 }

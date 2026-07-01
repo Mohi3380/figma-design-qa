@@ -10,13 +10,15 @@ export interface User {
   emailVerified: boolean;
   avatarUrl?: string | null;
   hasPassword?: boolean;
+  role?: 'USER' | 'ADMIN';
+  createdAt?: string;
 }
 
 interface AuthContextValue {
   user: User | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  signup: (email: string, password: string, name?: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<User>;
+  signup: (email: string, password: string, name?: string) => Promise<User>;
   logout: () => Promise<void>;
   reload: () => Promise<void>;
 }
@@ -49,10 +51,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = async (email: string, password: string) => {
     const { user } = await api.post<{ user: User }>('/auth/login', { email, password });
     setUser(user);
+    return user;
   };
   const signup = async (email: string, password: string, name?: string) => {
     const { user } = await api.post<{ user: User }>('/auth/signup', { email, password, name });
     setUser(user);
+    return user;
   };
   const logout = async () => {
     await api.post('/auth/logout');

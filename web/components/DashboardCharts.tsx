@@ -1,14 +1,7 @@
 'use client';
 
 import { Bar, BarChart, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-
-const SEV_COLORS: Record<string, string> = {
-  critical: '#DC2626',
-  high: '#EA580C',
-  medium: '#D97706',
-  low: '#2563EB',
-  info: '#64748B',
-};
+import { SEVERITY_COLORS as SEV_COLORS } from '@/lib/severity';
 
 const TOOLTIP = { fontSize: 12, borderRadius: 8, border: '1px solid #cbd5e1', color: '#0f172a' };
 
@@ -37,7 +30,7 @@ export function SeverityPie({ severity }: { severity: Record<string, number> }) 
       <PieChart>
         <Pie data={data} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={48} outerRadius={88} paddingAngle={2}>
           {data.map((d) => (
-            <Cell key={d.name} fill={SEV_COLORS[d.name] ?? '#64748B'} />
+            <Cell key={d.name} fill={SEV_COLORS[d.name as keyof typeof SEV_COLORS] ?? '#64748B'} />
           ))}
         </Pie>
         <Tooltip contentStyle={TOOLTIP} />

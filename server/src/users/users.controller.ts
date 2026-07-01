@@ -3,7 +3,6 @@ import {
   Body,
   Controller,
   Get,
-  NotFoundException,
   Param,
   Patch,
   Post,
@@ -15,16 +14,14 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ConfigService } from '@nestjs/config';
 import type { Response } from 'express';
-import fs from 'node:fs';
 import path from 'node:path';
 import { UsersService } from './users.service';
 import { JwtAuthGuard, AuthUser } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
+import { StorageService } from '../storage/storage.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { randomToken } from '../common/crypto.util';
-
-const UPLOAD_DIR = path.resolve(process.cwd(), 'uploads', 'avatars');
-const ALLOWED: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+import { mimeForExt, toWebSafeImage, UNSUPPORTED_IMAGE_MESSAGE } from '../common/image.util';
 
 interface UploadedImage {
   buffer: Buffer;
@@ -38,6 +35,7 @@ export class UsersController {
   constructor(
     private readonly users: UsersService,
     private readonly config: ConfigService,
+    private readonly storage: StorageService,
   ) {}
 
   @Patch('me')
@@ -49,25 +47,32 @@ export class UsersController {
 
   @Post('me/avatar')
   @UseGuards(JwtAuthGuard)
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 2 * 1024 * 1024 } }))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
   async uploadAvatar(@CurrentUser() current: AuthUser, @UploadedFile() file?: UploadedImage) {
     if (!file) throw new BadRequestException('No file uploaded.');
-    const ext = ALLOWED[file.mimetype];
-    if (!ext) throw new BadRequestException('Only JPG, PNG, or WebP images are allowed.');
-    fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-    const filename = `${current.id}-${randomToken(6)}.${ext}`;
-    fs.writeFileSync(path.join(UPLOAD_DIR, filename), file.buffer);
+    // Detect by real bytes (not the browser mimetype) and transcode HEIC→JPEG —
+    // an iPhone HEIC is reported as image/jpeg but won't render in any browser.
+    const img = await toWebSafeImage(file.buffer);
+    if (!img) throw new BadRequestException(UNSUPPORTED_IMAGE_MESSAGE);
+    // Opaque filename — no userId prefix. The avatar route is public (so <img>
+    // can load it), so a guessable, identity-revealing name would let anyone
+    // enumerate avatars and correlate them to a user id.
+    const filename = `${randomToken(16)}.${img.ext}`;
+    await this.storage.putBuffer(`avatars/${filename}`, img.buffer, mimeForExt(img.ext));
     const base = (this.config.get<string>('API_PUBLIC_URL') ?? 'http://localhost:4300/api').replace(/\/+$/, '');
     const user = await this.users.setAvatarUrl(current.id, `${base}/users/avatars/${filename}`);
     return { user: UsersService.toPublic(user) };
   }
 
-  // Public — so <img> tags can load avatars cross-origin.
+  // Public — so <img> tags can load avatars cross-origin. Served through the
+  // API for both backends (local sendFile / S3 presigned redirect).
   @Get('avatars/:filename')
-  serveAvatar(@Param('filename') filename: string, @Res() res: Response) {
+  async serveAvatar(@Param('filename') filename: string, @Res() res: Response) {
     const safe = path.basename(filename); // prevent path traversal
-    const fp = path.join(UPLOAD_DIR, safe);
-    if (!fs.existsSync(fp)) throw new NotFoundException();
-    res.sendFile(fp);
+    // helmet() sets CORP: same-origin globally, which blocks the frontend
+    // (different origin in dev) from loading this <img>. Relax it for avatars
+    // only — they're public, non-sensitive static images.
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    await this.storage.serve(res, `avatars/${safe}`);
   }
 }

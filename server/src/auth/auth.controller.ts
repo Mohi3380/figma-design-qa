@@ -16,7 +16,7 @@ import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
 import { JwtAuthGuard, AuthUser } from './jwt-auth.guard';
 import { CurrentUser } from './current-user.decorator';
-import { GoogleOAuthGuard } from './google.strategy';
+import { GoogleOAuthGuard, GOOGLE_STATE_COOKIE } from './google.strategy';
 import { setAuthCookies, clearAuthCookies } from './cookies';
 import { ChangePasswordDto, ForgotPasswordDto, LoginDto, ResetPasswordDto, SignupDto } from './dto/auth.dto';
 
@@ -100,6 +100,7 @@ export class AuthController {
 
   @Post('reset-password')
   @HttpCode(200)
+  @Throttle(tight)
   async resetPassword(@Body() dto: ResetPasswordDto) {
     await this.auth.resetPassword(dto.token, dto.password);
     return { ok: true };
@@ -107,6 +108,7 @@ export class AuthController {
 
   @Post('verify-email')
   @HttpCode(200)
+  @Throttle(tight)
   async verifyEmail(@Body('token') token: string) {
     await this.auth.verifyEmail(token);
     return { ok: true };
@@ -144,6 +146,15 @@ export class AuthController {
   @UseGuards(GoogleOAuthGuard)
   async googleCallback(@Req() req: Request & { user?: AuthUser }, @Res() res: Response) {
     const appUrl = this.config.get<string>('APP_BASE_URL') ?? 'http://localhost:4200';
+    // CSRF: the state Google echoed back must match the cookie we set when this
+    // browser started the flow. Mismatch ⇒ the callback was not initiated here
+    // (forced-login / login-CSRF), so refuse to establish a session.
+    const state = (req.query.state as string) || '';
+    const expected = req.cookies?.[GOOGLE_STATE_COOKIE];
+    res.clearCookie(GOOGLE_STATE_COOKIE, { path: '/' });
+    if (!state || state !== expected) {
+      return res.redirect(`${appUrl}/login?error=google`);
+    }
     const current = req.user;
     if (!current) return res.redirect(`${appUrl}/login?error=google`);
     const user = await this.users.findById(current.id);

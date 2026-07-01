@@ -18,7 +18,8 @@ export default function ForgotPasswordPage() {
       await api.post('/auth/forgot-password', { email });
       setSent(true);
     } catch (e) {
-      // Backend verifies the email exists and returns 404 if not.
+      // Backend responds identically whether or not the account exists (no
+      // enumeration), so an error here is a genuine network/server failure.
       setErr(e instanceof Error ? e.message : 'Could not send a reset link.');
     } finally {
       setBusy(false);
@@ -31,7 +32,7 @@ export default function ForgotPasswordPage() {
         <h1>Reset your password</h1>
         {sent ? (
           <>
-            <div className="auth-ok">A reset link is on its way to {email}. It expires in 1 hour.</div>
+            <div className="auth-ok">If an account exists for {email}, a reset link is on its way. It expires in 1 hour.</div>
             <div className="auth-foot"><Link href="/login">Back to log in</Link></div>
           </>
         ) : (
@@ -48,11 +49,7 @@ export default function ForgotPasswordPage() {
               </button>
             </form>
             <div className="auth-foot">
-              {err.toLowerCase().includes('no account') ? (
-                <>No account yet? <Link href="/signup">Create one</Link></>
-              ) : (
-                <Link href="/login">Back to log in</Link>
-              )}
+              <Link href="/login">Back to log in</Link>
             </div>
           </>
         )}

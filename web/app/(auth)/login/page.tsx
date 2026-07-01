@@ -1,28 +1,35 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth, GOOGLE_LOGIN_URL } from '@/components/AuthProvider';
 
-export default function SignupPage() {
-  const { signup } = useAuth();
+function LoginInner() {
+  const { login } = useAuth();
   const router = useRouter();
-  const [name, setName] = useState('');
+  const params = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
+
+  const notice =
+    params.get('error') === 'google'
+      ? 'Google sign-in failed. Please try again.'
+      : params.get('verified') === '1'
+        ? null
+        : null;
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setErr('');
     setBusy(true);
     try {
-      await signup(email, password, name || undefined);
-      router.push('/dashboard');
+      const u = await login(email, password);
+      router.push(u.role === 'ADMIN' ? '/admin' : '/dashboard');
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Sign up failed.');
+      setErr(e instanceof Error ? e.message : 'Login failed.');
     } finally {
       setBusy(false);
     }
@@ -31,8 +38,10 @@ export default function SignupPage() {
   return (
     <div className="auth-page">
       <div className="auth-card">
-        <h1>Create your account</h1>
-        <p className="sub2">Start comparing your Figma designs against the live app.</p>
+        <h1>Welcome back</h1>
+        <p className="sub2">Log in to run a Design QA and view your past reports.</p>
+        {notice && <div className="auth-err">{notice}</div>}
+        {params.get('verified') === '1' && <div className="auth-ok">Email verified — you can log in.</div>}
         {err && <div className="auth-err">{err}</div>}
 
         <a className="google-btn" href={GOOGLE_LOGIN_URL}>
@@ -43,26 +52,34 @@ export default function SignupPage() {
 
         <form onSubmit={onSubmit}>
           <div className="auth-field">
-            <label htmlFor="name">Name</label>
-            <input id="name" type="text" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
-          </div>
-          <div className="auth-field">
             <label htmlFor="email">Email</label>
             <input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
           </div>
           <div className="auth-field">
             <label htmlFor="password">Password</label>
-            <input id="password" type="password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" />
+            <input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
+          </div>
+          <div className="auth-links">
+            <span />
+            <Link href="/forgot-password">Forgot password?</Link>
           </div>
           <button className="btn btn-primary auth-btn" type="submit" disabled={busy}>
-            {busy ? 'Creating account…' : 'Create account'}
+            {busy ? 'Logging in…' : 'Log in'}
           </button>
         </form>
 
         <div className="auth-foot">
-          Already have an account? <Link href="/login">Log in</Link>
+          New here? <Link href="/signup">Create an account</Link>
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="dash-loading">Loading…</div>}>
+      <LoginInner />
+    </Suspense>
   );
 }

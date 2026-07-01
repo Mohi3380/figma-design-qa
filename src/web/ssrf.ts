@@ -118,19 +118,36 @@ function reasonForClass(cls: IpClass, ip: string, host: string, allowPrivate: bo
   return null;
 }
 
-async function hostBlockedReason(host: string, allowPrivate: boolean): Promise<string | null> {
+/**
+ * Resolve a host and classify every address it maps to. Returns the resolved
+ * IPs (so the caller can PIN the connection to a validated address) plus the
+ * first block reason, or null when every address passes policy.
+ */
+async function inspectHost(
+  host: string,
+  allowPrivate: boolean,
+): Promise<{ addresses: string[]; reason: string | null }> {
   const clean = host.replace(/^\[|\]$/g, '').toLowerCase();
-  if (METADATA_HOSTS.has(clean)) return `"${host}" is a blocked metadata host.`;
-  const addrs = await resolveAll(clean);
-  for (const ip of addrs) {
+  if (METADATA_HOSTS.has(clean)) return { addresses: [], reason: `"${host}" is a blocked metadata host.` };
+  const addresses = await resolveAll(clean);
+  for (const ip of addresses) {
     const r = reasonForClass(classifyIp(ip), ip, host, allowPrivate);
-    if (r) return r;
+    if (r) return { addresses, reason: r };
   }
-  return null;
+  return { addresses, reason: null };
 }
 
-/** Validate the top-level target URL before navigation. Throws on block. */
-export async function assertSafeUrl(raw: string, opts: { allowPrivate: boolean }): Promise<URL> {
+/**
+ * Validate the top-level target URL before navigation. Throws on block.
+ * Returns the parsed URL plus the validated IPs it resolves to — the caller
+ * pins the browser to one of these (see `hostResolverRuleFor`) so that the
+ * address actually connected to is the same one that was checked, closing the
+ * resolve-then-connect (DNS-rebinding / TOCTOU) gap.
+ */
+export async function assertSafeUrl(
+  raw: string,
+  opts: { allowPrivate: boolean },
+): Promise<{ url: URL; addresses: string[] }> {
   let url: URL;
   try {
     url = new URL(raw);
@@ -143,27 +160,59 @@ export async function assertSafeUrl(raw: string, opts: { allowPrivate: boolean }
   if (url.username || url.password) {
     throw new SsrfBlockedError('URLs with embedded credentials are not allowed.');
   }
-  const reason = await hostBlockedReason(url.hostname, opts.allowPrivate);
+  const { addresses, reason } = await inspectHost(url.hostname, opts.allowPrivate);
   if (reason) throw new SsrfBlockedError(`Blocked target — ${reason}`);
-  return url;
+  return { url, addresses };
+}
+
+/**
+ * Build a Chromium `--host-resolver-rules` argument that forces `url`'s
+ * hostname to resolve to one of the already-validated `addresses`. This pins
+ * the connection to the checked IP, so an attacker who rebinds the DNS record
+ * after `assertSafeUrl` cannot make the browser connect to an internal address.
+ * Returns undefined when the host is already an IP literal (no DNS, so nothing
+ * to rebind) or when there is no address to pin.
+ */
+export function hostResolverRuleFor(url: URL, addresses: string[]): string | undefined {
+  const host = url.hostname.replace(/^\[|\]$/g, '');
+  if (isIP(host) !== 0 || addresses.length === 0) return undefined; // IP literal → no DNS to rebind
+  const pin = addresses.find((a) => isIP(a) === 4) ?? addresses[0];
+  const dest = isIP(pin) === 6 ? `[${pin}]` : pin;
+  return `MAP ${host} ${dest}`;
 }
 
 /**
  * Abort any browser request (navigation, subresource, or redirect target)
- * whose host fails the same policy — defends against DNS rebinding and
- * internal subresource fetches, not just the initial URL.
+ * whose host fails the same policy — defends against internal subresource
+ * fetches and redirects to other hosts, complementing the IP pinning that
+ * `hostResolverRuleFor` applies to the primary target.
  */
+// Schemes that never touch the network and so carry no SSRF risk — inline page
+// data the renderer needs (data:/blob: images & fonts, about:blank). Blocking
+// these (as a blanket "non-http(s) → abort" did) corrupts the captured
+// screenshot the pixel diff relies on.
+const SAFE_SCHEMES = new Set(['data:', 'blob:', 'about:', 'filesystem:']);
+
+// How long an allow-decision may be reused before the host is re-resolved.
+// Bounding it limits the window in which a DNS rebind (host first resolves
+// global, then flips to an internal IP) can ride a stale "allowed" verdict.
+const HOST_VERDICT_TTL_MS = 5_000;
+
 export async function installSsrfGuard(page: Page, opts: { allowPrivate: boolean }): Promise<void> {
-  const cache = new Map<string, boolean>(); // host -> allowed
+  const cache = new Map<string, { allowed: boolean; at: number }>(); // host -> verdict
   await page.route('**/*', async (route) => {
     try {
       const u = new URL(route.request().url());
+      if (SAFE_SCHEMES.has(u.protocol)) return route.continue();
       if (u.protocol !== 'http:' && u.protocol !== 'https:') return route.abort('blockedbyclient');
       const host = u.hostname.replace(/^\[|\]$/g, '').toLowerCase();
-      let allowed = cache.get(host);
-      if (allowed === undefined) {
-        allowed = (await hostBlockedReason(host, opts.allowPrivate)) === null;
-        cache.set(host, allowed);
+      const hit = cache.get(host);
+      let allowed: boolean;
+      if (hit && Date.now() - hit.at < HOST_VERDICT_TTL_MS) {
+        allowed = hit.allowed;
+      } else {
+        allowed = (await inspectHost(host, opts.allowPrivate)).reason === null;
+        cache.set(host, { allowed, at: Date.now() });
       }
       return allowed ? route.continue() : route.abort('blockedbyclient');
     } catch {

@@ -28,7 +28,6 @@ import { renderPdf } from './report/pdf.js';
 import { writeReports } from './report/write.js';
 import type { ComparisonReport, DesignExtraction, LiveCapture, Severity } from './types.js';
 import { captureUrl, WebCaptureError } from './web/capturer.js';
-import { serve } from './web-ui/server.js';
 
 const program = new Command();
 
@@ -261,18 +260,9 @@ program
     },
   );
 
-program
-  .command('serve')
-  .description('Launch the web UI: paste two URLs in the browser, view the report inline.')
-  .option('--port <port>', 'Port to listen on', '4100')
-  .option('--host <host>', 'Host to bind', '127.0.0.1')
-  .option('--config <path>', 'Path to design-qa.config.json', 'design-qa.config.json')
-  .option('--out <dir>', 'Output directory', './design-qa-output')
-  .action(async (opts: { port: string; host: string; config: string; out: string }) => {
-    const port = Number(opts.port);
-    if (!Number.isInteger(port) || port <= 0) fail(`--port must be a positive integer, got "${opts.port}".`);
-    await serve({ port, host: opts.host, configPath: opts.config, outDir: opts.out });
-  });
+// NOTE: the old `serve` command (legacy single-file web UI in src/web-ui) was
+// removed — the hosted app (Next.js web/ + NestJS server/) supersedes it. Use
+// `design-qa run` for headless CLI runs, or the web app for the browser UI.
 
 /** Phase 6 MCP source: design tree from get_metadata XML + a get_screenshot
  * PNG. Writes the same design-tree artifact the REST `extract` produces. */

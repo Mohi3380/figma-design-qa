@@ -11,8 +11,17 @@ export function hashToken(token: string): string {
 }
 
 /** AES-256-GCM encrypt/decrypt for third-party tokens stored at rest (Figma). */
+// The derived key is a pure function of the (process-lifetime constant) enc
+// secret, so memoize it — otherwise every encrypt/decrypt re-runs SHA-256. In
+// practice this map holds a single entry (the one TOKEN_ENC_SECRET).
+const keyCache = new Map<string, Buffer>();
 function encKey(secret: string): Buffer {
-  return crypto.createHash('sha256').update(secret).digest();
+  let key = keyCache.get(secret);
+  if (!key) {
+    key = crypto.createHash('sha256').update(secret).digest();
+    keyCache.set(secret, key);
+  }
+  return key;
 }
 
 export function encryptSecret(plaintext: string, secret: string): string {

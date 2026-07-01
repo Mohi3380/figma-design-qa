@@ -2,7 +2,6 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
-  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -13,6 +12,12 @@ import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
 import { MailService } from '../mail/mail.service';
 import { hashToken, randomToken } from '../common/crypto.util';
+import { getSecret } from '../config/secrets.util';
+import { isAdminEmail } from './admin.util';
+
+// bcrypt work factor for new password hashes. 12 ≈ OWASP's current floor; older
+// hashes stored at a lower cost still verify (the cost is encoded in the hash).
+const BCRYPT_ROUNDS = 12;
 
 export interface TokenMeta {
   userAgent?: string;
@@ -30,10 +35,10 @@ export class AuthService {
   ) {}
 
   private get accessSecret() {
-    return this.config.get<string>('JWT_ACCESS_SECRET') ?? 'dev-access-secret';
+    return getSecret(this.config, 'JWT_ACCESS_SECRET');
   }
   private get refreshSecret() {
-    return this.config.get<string>('JWT_REFRESH_SECRET') ?? 'dev-refresh-secret';
+    return getSecret(this.config, 'JWT_REFRESH_SECRET');
   }
   get accessTtl() {
     return Number(this.config.get('JWT_ACCESS_TTL') ?? 900);
@@ -45,13 +50,27 @@ export class AuthService {
     return this.config.get<string>('APP_BASE_URL') ?? 'http://localhost:4200';
   }
 
+  /** Promote a user to ADMIN if their email is in the ADMIN_EMAILS allowlist.
+   * Only ever promotes — never demotes — so admin-granted roles persist. */
+  private async maybePromote(user: User): Promise<User> {
+    if (user.role === 'ADMIN') return user;
+    if (!isAdminEmail(this.config, user.email)) return user;
+    return this.prisma.user.update({ where: { id: user.id }, data: { role: 'ADMIN' } });
+  }
+
+  private assertNotDisabled(user: User): void {
+    if (user.disabledAt) {
+      throw new UnauthorizedException('This account has been disabled. Contact an administrator.');
+    }
+  }
+
   async signup(email: string, password: string, name?: string): Promise<User> {
     const existing = await this.users.findByEmail(email);
     if (existing) throw new ConflictException('An account with that email already exists.');
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
     const user = await this.users.create({ email, name, passwordHash });
     await this.sendVerificationEmail(user);
-    return user;
+    return this.maybePromote(user);
   }
 
   async validateLogin(email: string, password: string): Promise<User> {
@@ -63,7 +82,8 @@ export class AuthService {
     }
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) throw new UnauthorizedException('Invalid email or password.');
-    return user;
+    this.assertNotDisabled(user);
+    return this.maybePromote(user);
   }
 
   async issueTokens(user: User, meta: TokenMeta = {}): Promise<{ accessToken: string; refreshToken: string }> {
@@ -91,19 +111,43 @@ export class AuthService {
     refreshToken: string,
     meta: TokenMeta = {},
   ): Promise<{ user: User; accessToken: string; refreshToken: string }> {
-    let payload: { sub: string };
+    let payload: { sub: string; type?: string };
     try {
-      payload = await this.jwt.verifyAsync(refreshToken, { secret: this.refreshSecret });
+      payload = await this.jwt.verifyAsync(refreshToken, {
+        secret: this.refreshSecret,
+        algorithms: ['HS256'],
+      });
     } catch {
+      throw new UnauthorizedException('Invalid refresh token.');
+    }
+    // Defense-in-depth: only a token explicitly minted as a refresh token may
+    // rotate — never an access token that happens to verify under this secret.
+    if (payload.type !== 'refresh') {
       throw new UnauthorizedException('Invalid refresh token.');
     }
     const stored = await this.prisma.refreshToken.findUnique({ where: { tokenHash: hashToken(refreshToken) } });
     if (!stored || stored.revokedAt || stored.expiresAt < new Date()) {
       throw new UnauthorizedException('Refresh token expired or revoked.');
     }
-    await this.prisma.refreshToken.update({ where: { id: stored.id }, data: { revokedAt: new Date() } });
+    // Atomically claim the token: flip revokedAt only if it is still null. With
+    // two concurrent requests presenting the same token, exactly one update
+    // matches a row — the loser gets count===0 and is rejected, so rotation is
+    // strictly single-use (no race that mints two live token families).
+    const claim = await this.prisma.refreshToken.updateMany({
+      where: { id: stored.id, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    if (claim.count === 0) {
+      // Someone else already rotated this exact token. Reject this request, but
+      // do NOT revoke the rest of the family: benign concurrent refreshes are
+      // normal here (multiple tabs share the cookie), and the winner has already
+      // issued a fresh, valid token that those tabs will pick up. (Revoking the
+      // family on every race would log honest users out.)
+      throw new UnauthorizedException('Refresh token already used.');
+    }
     const user = await this.users.findById(payload.sub);
     if (!user) throw new UnauthorizedException('User no longer exists.');
+    this.assertNotDisabled(user);
     const tokens = await this.issueTokens(user, meta);
     return { user, ...tokens };
   }
@@ -144,8 +188,14 @@ export class AuthService {
 
   async forgotPassword(email: string): Promise<void> {
     const user = await this.users.findByEmail(email);
-    // Per product requirement: confirm the email exists and tell the user.
-    if (!user) throw new NotFoundException('No account found with that email address.');
+    // Do NOT reveal whether an account exists — respond identically either way
+    // (the controller always returns ok). Prevents account enumeration.
+    //
+    // Also skip silently for accounts with no password set (Google-only / SSO):
+    // issuing a reset would create a local password login path on an identity
+    // that is meant to be governed solely by the SSO provider. Such users add a
+    // password through change-password while signed in, not via this flow.
+    if (!user || !user.passwordHash) return;
     const raw = randomToken();
     await this.prisma.verificationToken.create({
       data: {
@@ -168,7 +218,7 @@ export class AuthService {
       const ok = await bcrypt.compare(currentPassword, user.passwordHash);
       if (!ok) throw new BadRequestException('Your current password is incorrect.');
     }
-    const passwordHash = await bcrypt.hash(newPassword, 10);
+    const passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
     await this.prisma.$transaction([
       this.prisma.user.update({ where: { id: userId }, data: { passwordHash } }),
       this.prisma.refreshToken.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } }),
@@ -177,8 +227,9 @@ export class AuthService {
 
   async resendVerification(email: string): Promise<void> {
     const user = await this.users.findByEmail(email);
-    if (!user) throw new NotFoundException('No account found with that email address.');
-    if (user.emailVerified) throw new BadRequestException('This email is already verified.');
+    // Silent no-op for unknown / already-verified accounts — the controller
+    // returns ok regardless, so neither existence nor state is revealed.
+    if (!user || user.emailVerified) return;
     await this.sendVerificationEmail(user);
   }
 
@@ -187,7 +238,7 @@ export class AuthService {
     if (!record || record.type !== 'PASSWORD_RESET' || record.usedAt || record.expiresAt < new Date()) {
       throw new BadRequestException('Invalid or expired reset link.');
     }
-    const passwordHash = await bcrypt.hash(newPassword, 10);
+    const passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
     await this.prisma.$transaction([
       this.prisma.user.update({ where: { id: record.userId }, data: { passwordHash } }),
       this.prisma.verificationToken.update({ where: { id: record.id }, data: { usedAt: new Date() } }),
@@ -204,20 +255,26 @@ export class AuthService {
     avatarUrl?: string;
   }): Promise<User> {
     const byGoogle = await this.users.findByGoogleId(profile.googleId);
-    if (byGoogle) return byGoogle;
+    if (byGoogle) {
+      this.assertNotDisabled(byGoogle);
+      return this.maybePromote(byGoogle);
+    }
     const byEmail = await this.users.findByEmail(profile.email);
     if (byEmail) {
-      return this.prisma.user.update({
+      this.assertNotDisabled(byEmail);
+      const linked = await this.prisma.user.update({
         where: { id: byEmail.id },
         data: { googleId: profile.googleId, emailVerified: true, avatarUrl: byEmail.avatarUrl ?? profile.avatarUrl },
       });
+      return this.maybePromote(linked);
     }
-    return this.users.create({
+    const created = await this.users.create({
       email: profile.email,
       name: profile.name,
       googleId: profile.googleId,
       emailVerified: true,
       avatarUrl: profile.avatarUrl,
     });
+    return this.maybePromote(created);
   }
 }

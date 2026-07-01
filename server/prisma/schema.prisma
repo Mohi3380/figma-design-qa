@@ -1,4 +1,4 @@
-// KODERLABS Design QA — data model.
+// Pixparity — data model.
 // Local dev uses SQLite (a single file, zero setup). Status/type fields are
 // plain strings and JSON is stored as text, so this same schema also works on
 // Postgres later — switch `provider` to "postgresql" and set DATABASE_URL.
@@ -16,19 +16,21 @@ datasource db {
 }
 
 model User {
-  id            String   @id @default(cuid())
-  email         String   @unique
+  id            String    @id @default(cuid())
+  email         String    @unique
   name          String?
   passwordHash  String? // null for Google-only accounts
-  googleId      String?  @unique
-  emailVerified Boolean  @default(false)
+  googleId      String?   @unique
+  emailVerified Boolean   @default(false)
   avatarUrl     String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  role          String    @default("USER") // USER | ADMIN
+  disabledAt    DateTime? // set => account is disabled (cannot log in)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   refreshTokens      RefreshToken[]
   verificationTokens VerificationToken[]
-  figmaConnection    FigmaConnection?
+  credentials        ApiCredential[]
   qaJobs             QAJob[]
 
   @@index([email])
@@ -63,17 +65,24 @@ model VerificationToken {
   @@index([userId, type])
 }
 
-// A user's connected Figma account (OAuth). Tokens stored encrypted at rest.
-model FigmaConnection {
+// A user's per-provider API credential (Figma / Anthropic), encrypted at rest.
+// One row per (user, provider). `secretEnc` is the access token / api key;
+// `refreshTokenEnc`/`expiresAt` apply to Figma OAuth. Never returned to clients.
+model ApiCredential {
   id              String    @id @default(cuid())
-  userId          String    @unique
+  userId          String
   user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  accessTokenEnc  String
+  provider        String // 'figma' | 'anthropic'
+  type            String // 'oauth' | 'pat'
+  secretEnc       String
   refreshTokenEnc String?
   expiresAt       DateTime?
-  figmaUserId     String?
+  accountLabel    String? // e.g. Figma user id, or "Personal token"
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+
+  @@unique([userId, provider])
+  @@index([userId])
 }
 
 model QAJob {
@@ -86,6 +95,7 @@ model QAJob {
   pdf        Boolean   @default(true)
   viewport   Int? // null = auto
   status     String    @default("PENDING") // PENDING | RUNNING | COMPLETED | FAILED
+  progress   String? // last streamed stage/message (persisted for reconnects)
   error      String?
   createdAt  DateTime  @default(now())
   startedAt  DateTime?
@@ -94,6 +104,23 @@ model QAJob {
   report QAReport?
 
   @@index([userId, createdAt])
+}
+
+// A person shown on the public "Our Team" page (/team). Editable by admins
+// via /api/admin/team; the public page reads the visible rows from /api/team.
+model TeamMember {
+  id          String   @id @default(cuid())
+  name        String
+  role        String
+  avatarUrl   String? // optional photo; falls back to gradient + initials
+  linkedinUrl String?
+  xUrl        String?
+  sortOrder   Int      @default(0) // ascending display order on the page
+  visible     Boolean  @default(true) // hide without deleting
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([sortOrder])
 }
 
 model QAReport {
@@ -108,6 +135,14 @@ model QAReport {
   matched         Int      @default(0)
   // JSON stored as text (portable across SQLite/Postgres).
   issuesBySeverity String?
+  // Denormalized per-severity issue counts (derived from issuesBySeverity on
+  // write) so the dashboards SUM() them DB-side instead of loading + parsing
+  // every report row. Keep in sync with the JSON blob above.
+  sevCritical      Int      @default(0)
+  sevHigh          Int      @default(0)
+  sevMedium        Int      @default(0)
+  sevLow           Int      @default(0)
+  sevInfo          Int      @default(0)
   summary          String?
   htmlPath         String?
   jsonPath         String?

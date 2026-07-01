@@ -6,7 +6,7 @@ export class HealthController {
   check() {
     return {
       status: 'ok',
-      service: 'koderlabs-design-qa-server',
+      service: 'pixparity-design-qa-server',
       uptime: Math.round(process.uptime()),
       timestamp: new Date().toISOString(),
     };

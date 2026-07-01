@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { DEV_SECRET_FALLBACKS } from './secrets.util';
 
 /**
  * Environment validation. Most keys are optional during early phases so the
@@ -9,9 +10,10 @@ import { z } from 'zod';
 // values in production — otherwise sessions are forgeable and stored Figma
 // tokens are weakly encrypted. We fail-fast at boot rather than silently run
 // with the `dev-…` defaults. (Security review: required-secrets finding.)
-const PROD_REQUIRED_SECRETS = ['JWT_ACCESS_SECRET', 'JWT_REFRESH_SECRET', 'TOKEN_ENC_SECRET'] as const;
+// Derived from the single source of truth in secrets.util.ts.
+const PROD_REQUIRED_SECRETS = Object.keys(DEV_SECRET_FALLBACKS) as (keyof typeof DEV_SECRET_FALLBACKS)[];
 const MIN_SECRET_LEN = 16;
-const DEV_FALLBACKS = new Set(['dev-access-secret', 'dev-refresh-secret', 'dev-token-encryption-secret']);
+const DEV_FALLBACKS = new Set<string>(Object.values(DEV_SECRET_FALLBACKS));
 
 const envSchema = z
   .object({

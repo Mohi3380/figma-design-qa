@@ -7,13 +7,17 @@ import { validateEnv } from './config/env.validation';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { HealthController } from './health/health.controller';
 import { PrismaModule } from './prisma/prisma.module';
+import { StorageModule } from './storage/storage.module';
 import { MailModule } from './mail/mail.module';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { EngineModule } from './engine/engine.module';
+import { CredentialsModule } from './credentials/credentials.module';
 import { FigmaModule } from './figma/figma.module';
 import { QaModule } from './qa/qa.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { AdminModule } from './admin/admin.module';
+import { TeamModule } from './team/team.module';
 
 const isDev = process.env.NODE_ENV !== 'production';
 
@@ -30,13 +34,17 @@ const isDev = process.env.NODE_ENV !== 'production';
     }),
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
     PrismaModule,
+    StorageModule,
     MailModule,
     UsersModule,
     AuthModule,
     EngineModule,
+    CredentialsModule,
     FigmaModule,
     QaModule,
     DashboardModule,
+    AdminModule,
+    TeamModule,
   ],
   controllers: [HealthController],
   providers: [

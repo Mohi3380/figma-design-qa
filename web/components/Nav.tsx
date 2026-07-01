@@ -19,7 +19,7 @@ export default function Nav() {
     <nav>
       <div className="wrap">
         <Link className="brand" href="/" style={{ textDecoration: 'none' }}>
-          <span className="logo">KL</span> KODERLABS Design QA
+          <span className="logo">Px</span> Pixparity
         </Link>
         <span className="links">
           <Link href="/#how">How it works</Link>
